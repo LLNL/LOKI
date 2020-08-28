@@ -1,0 +1,4 @@
+This is an example of a Matlab script that will generate a 2D distribution
+that may be read by "External 2D" initial condition.  The script is set up
+for a 512x512 configuration space but those values may be edited for a
+configuration space of a different size.
