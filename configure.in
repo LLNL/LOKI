@@ -1,0 +1,481 @@
+dnl
+dnl Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+dnl Produced at the Lawrence Livermore National Laboratory
+dnl
+dnl Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
+dnl Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
+dnl hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
+dnl berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
+dnl Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
+dnl Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
+dnl CH-1015 Lausanne, Switzerland).
+dnl CODE-744849
+dnl
+dnl All rights reserved.
+dnl
+dnl This file is part of Loki.  For details, see.
+dnl
+dnl Permission is hereby granted, free of charge, to any person obtaining a
+dnl copy of this software and associated documentation files (the "Software"),
+dnl to deal in the Software without restriction, including without limitation
+dnl the rights to use, copy, modify, merge, publish, distribute, sublicense,
+dnl and/or sell copies of the Software, and to permit persons to whom the
+dnl Software is furnished to do so, subject to the following conditions:
+dnl
+dnl The above copyright notice and this permission notice shall be included in
+dnl all copies or substantial portions of the Software.
+dnl
+dnl THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+dnl OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+dnl FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+dnl THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+dnl LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+dnl FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+dnl DEALINGS IN THE SOFTWARE.
+dnl
+dnl autoconfig configuration file
+dnl
+AC_INIT(main.C)
+
+dnl
+dnl Give the C compiler to use.
+dnl
+AC_ARG_WITH([CC],
+   [AS_HELP_STRING([--with-CC=ARG],[manually set C compiler to ARG])]
+   )
+
+dnl
+dnl Give the C++ compiler to use.
+dnl
+AC_ARG_WITH([CXX],
+   [AS_HELP_STRING([--with-CXX=ARG],[manually set C++ compiler to ARG])]
+   )
+
+dnl
+dnl Give the Fortran77 that Overture was built with.
+dnl Due to Fortran library conflicts that arise from trying to build Loki with
+dnl a Fortran compiler other that what was used to build Overture, Loki will
+dnl be built with the same Fortran compiler as was Overture.
+dnl
+AC_ARG_WITH([F77],
+   [AS_HELP_STRING([--with-F77=ARG],
+   [set the Fortran77 compiler that Overture was built with to ARG])]
+   )
+
+dnl
+dnl Give the location of the Overture installation to use.
+dnl
+AC_ARG_WITH([overture],
+   [AC_HELP_STRING([--with-overture=ARG],
+                   [location of Overture installation])]
+   )
+if test -z "$with_overture"; then
+   AC_MSG_ERROR([location of the Overture installation must be given])
+else
+   Overture="$with_overture"
+fi
+
+dnl
+dnl Initialize common macros.
+dnl
+CXX_FLAGS="$CXXFLAGS"
+C_FLAGS="$CFLAGS"
+F77_FLAGS="$FFLAGS"
+
+DASH_D="-DUSE_PPP"
+DATA_MOVE_INC_PATH=
+INC_PATH=
+LIB_PATH=
+LIB_NAME=
+SUPERLU_LIB_PATH=
+SUPERLU_DIST_LIB_PATH=
+METIS_LIB_PATH=
+PARMETIS_LIB_PATH=
+PETSC_DIR="$Overture/PETSc"
+PETSC_LIB_PATH="-L$PETSC_DIR/lib"
+
+dnl
+dnl Enable use of superlu/superlu_dist solvers.
+dnl
+AC_ARG_ENABLE([superlu],
+   [AS_HELP_STRING([--enable-superlu],
+      [build Loki's solvers to use SUPERLU (default is enabled)])],
+   ,
+   [enable_superlu="yes"]
+   )
+if test "$enable_superlu" = "yes"; then
+   DASH_D="-DUSE_SUPERLU $DASH_D"
+
+   SUPERLU_DIR="$PETSC_DIR/SUPERLU"
+   SUPERLU_LIB_PATH="-L$SUPERLU_DIR/lib"
+
+   SUPERLU_DIST_DIR="$PETSC_DIR/SUPERLU_DIST"
+   SUPERLU_DIST_LIB_PATH="-L$SUPERLU_DIST_DIR/lib"
+
+   METIS_DIR="$SUPERLU_DIST_DIR/METIS"
+   METIS_LIB_PATH="-L$METIS_DIR/lib"
+
+   PARMETIS_DIR="$SUPERLU_DIST_DIR/PARMETIS"
+   PARMETIS_LIB_PATH="-L$PARMETIS_DIR/lib"
+else
+   SUPERLU_LIB_PATH=
+   SUPERLU_DIST_LIB_PATH=
+   METIS_LIB_PATH=
+   PARMETIS_LIB_PATH=
+fi
+
+dnl
+dnl Guess the machine architecture and set the variable ARCH
+dnl
+CASC_GUESS_ARCH
+CASC_AC_LOG_VAR(ARCH)
+
+dnl
+dnl Set up the C++ compiler.  
+dnl
+if test -n "$with_CXX"; then
+   CXX=$with_CXX
+else
+   case "$host_os" in
+     linux*) CCC=" g++ ";;
+     solaris*) CCC=" g++ ";;
+     osf*) CCC=" g++ ";;
+     *) CCC=
+   esac
+fi
+CASC_AC_LOG_VAR(with_CXX CXX CCC, before running compiler search)
+AC_PROG_CXX($CCC)
+CASC_AC_LOG_VAR(with_CXX CXX CCC, after running compiler search)
+
+dnl
+dnl Set up the C compiler.  This macro must come first and be followed
+dnl AC_ISC_POSIX before other compiler tests are run.  See the autoconfig
+dnl manual for details.
+dnl
+if test -n "$with_CC"; then
+   CC=$with_CC
+else
+   AC_PROG_CC
+fi
+
+AC_ISC_POSIX
+
+dnl
+dnl Determine which C++ compiler is being used.
+dnl
+CASC_INFO_CC_CXX_ID
+# Warn user about unsupported compilers:
+case $CXX_ID in
+gnu|xlc|intel) ;;
+*)
+  AC_MSG_WARN([
+You are using a C++ compiler unsupported by Loki
+You are on your own!
+])
+  ;;
+esac
+
+case $CXX_ID in
+   gnu)
+      case $ARCH in
+         IRIX64)
+            CXX_FLAGS="-mabi=64 $CXX_FLAGS"
+            ;;
+      esac
+      ;;
+   xlc)
+      CXX_FLAGS="-qrtti $CXX_FLAGS"
+      ;;
+   *)
+      ;; 
+esac
+
+dnl
+dnl Enable C/C++ compiler warnings.
+dnl
+AC_ARG_ENABLE([warnings],
+   [AS_HELP_STRING([--enable-warnings=STRING],[Enable compiler warnings.])],
+[case "$enable_warnings" in
+   no)
+      ;;
+   *)
+      case $CXX_ID in
+         gnu)
+            CXX_FLAGS="-Wall -Wextra -Wconversion $CXX_FLAGS"
+            ;;
+         intel)
+            # Ignore some Intel warnings that seem harmless and very hard to
+            # get rid of
+            CXX_FLAGS="$CXX_FLAGS -Wall -w1 -wd981 -wd383 -wd1418 -wd522"
+            ;;
+         *)
+            ;;
+      esac
+      case $CC_ID in
+         gnu)
+            C_FLAGS="-Wall -Wextra -Wconversion $C_FLAGS"
+            ;;
+         intel)
+            # Ignore some Intel warnings that seem harmless and very hard to
+            # get rid of
+            C_FLAGS="$C_FLAGS -Wall -w1 -wd981 -wd383 -wd1418 -wd522"
+            ;;
+         *)
+            ;;
+      esac
+      ;;
+esac],,
+   )
+
+dnl
+dnl Enable debugging symbol tables.
+dnl
+AC_ARG_ENABLE([debug],
+   [AS_HELP_STRING([--enable-debug=STRING],[Set compiler debug switches.])],
+[case "$enable_debug" in
+   no) debug_switches= ;;
+   yes) debug_switches="-g -DDEBUG -DDEBUG_CHECK_ASSERTIONS -DDEBUG_CHECK_DEV_ASSERTIONS -DDEBUG_INITIALIZE_UNDEFINED" ;;
+   *) debug_switches="$enable_debug" ;;
+esac],
+debug_switches="-g -DDEBUG -DDEBUG_CHECK_ASSERTIONS -DDEBUG_CHECK_DEV_ASSERTIONS -DDEBUG_INITIALIZE_UNDEFINED"
+   )
+if test -n "$debug_switches" ; then
+   C_FLAGS="$debug_switches $C_FLAGS"
+   CXX_FLAGS="$debug_switches $CXX_FLAGS"
+   F77_FLAGS="$debug_switches $F77_FLAGS"
+fi
+
+dnl
+dnl Enable compiler optimization.
+dnl
+AC_ARG_ENABLE([opt],
+   [AS_HELP_STRING([--enable-opt=STRING],[Set compiler optimizaion.])],
+[case "$enable_opt" in
+   no) opt_switches="-O0" ;;
+   yes) opt_switches="-O2" ;;
+   *) opt_switches="$enable-opt" ;;
+esac],
+opt_switches=
+   )
+if test -n "$opt_switches" ; then
+   C_FLAGS="$opt_switches $C_FLAGS"
+   CXX_FLAGS="$opt_switches $CXX_FLAGS"
+   F77_FLAGS="$opt_switches $F77_FLAGS"
+fi
+
+dnl
+dnl Set up the Fortran compiler.
+dnl
+if test -n "$with_F77"; then
+   dnl If user specifies full path then don't search in path
+   if test -f $with_F77; then
+      F77=$with_F77
+   else
+      AC_CHECK_PROGS(F77, $with_F77)
+   fi
+else
+   if test -z "$F77"; then
+      if test -n "$with_mpi_include"; then
+         AC_CHECK_PROGS(F77, pgf77 f77 g77 xlf)
+      else
+         AC_CHECK_PROGS(F77, mpipgf77 mpif77 mpig77)
+      fi
+   else
+      dnl If F77 was specified then see if it is a full path or just the prog
+      dnl name in users PATH
+      if test -f $F77; then
+	F77=$F77
+      else
+	AC_CHECK_PROGS(F77, $F77)
+      fi
+   fi
+fi
+
+test -z "$F77" && AC_MSG_ERROR([no acceptable Fortran found in $PATH])
+CASC_AC_LOG_VAR(F77)
+
+dnl This is pretty bad.  Historically we've built with the PGI Fortan compiler
+dnl on chaos (toss2) irrespective of the C/C++ compiler being used.  On toss3
+dnl we use a consistent compiler suite.  So here we set some fortran flags
+dnl by first seeing if we're using a PGI Fortran compiler and, if not, by
+dnl looking at the type of the C++ compiler.  The same is true in the next
+dnl block where the compiler warnings are set.
+fortran_name=`echo $F77 | sed -e 's:.*/::'`
+if test "$fortran_name" = "pgf77" || test "$fortran_name" = "mpipgf77"; then
+   F77_FLAGS="-r8 -i4 $F77_FLAGS"
+else
+   case $CXX_ID in
+      gnu)
+         F77_FLAGS="-fdefault-real-8 -fdefault-double-8 $F77_FLAGS"
+         ;;
+      intel)
+         F77_FLAGS="-real-size 64 $F77_FLAGS"
+         ;;
+      *)
+         ;;
+   esac
+fi
+
+dnl
+dnl Enable Fortran compiler warnings.
+dnl
+AC_ARG_ENABLE([warnings],
+   [AS_HELP_STRING([--enable-warnings=STRING],[Enable compiler warnings.])],
+[case "$enable_warnings" in
+   no)
+      ;;
+   *)
+      if test "$fortran_name" = "pgf77" || test "$fortran_name" = "mpipgf77"; then
+         F77_FLAGS="$F77_FLAGS -Minform=inform"
+      else
+         case $CXX_ID in
+            gnu)
+               F77_FLAGS="-Wall $F77_FLAGS"
+               ;;
+            intel)
+               F77_FLAGS="$F77_FLAGS -warn all"
+               ;;
+            *)
+               ;;
+         esac
+      fi
+      ;;
+esac],,
+   )
+
+dnl
+dnl Set up the Fortran libraries.
+dnl
+AC_F77_LIBRARY_LDFLAGS
+SPLIT_LIBS_STRING(FLIBS,FLIBS_PATH,FLIBS_NAME)
+LIB_NAME="${LIB_NAME} ${FLIBS_NAME}"
+LIB_PATH="${LIB_PATH} ${FLIBS_PATH}"
+CASC_AC_LOG_VAR([FLIBS FLIBS_PATH FLIBS_NAME], [after using ac_f77_library_ldflags])
+
+dnl
+dnl Specify if Loki's solvers are built to use PETSC.
+dnl
+AC_ARG_ENABLE([petsc_solvers],
+   [AS_HELP_STRING([--enable-petsc-solvers],
+      [build Loki's solvers to use PETSC (default is enabled)])],
+   ,
+   [enable_petsc_solvers="yes"]
+   )
+if test "$enable_petsc_solvers" = "yes"; then
+   DASH_D="-DOVERTURE_USE_PETSC $DASH_D"
+fi
+
+dnl
+dnl Determine the proper MPI include and lib paths.
+dnl
+if test "${with_mpi-include+set}" = set || test "${with_mpi-lib-dirs+set}" = set || test "${with_mpi_libs+set}" = set; then
+   CASC_FIND_MPI
+
+   if test -n "$MPIINCLUDE" -o -n "$MPILIBS" -o -n "$MPILIBDIRS"; then
+     INC_PATH="$MPIINCLUDE $INC_PATH"
+     LIB_NAME="$MPILIBS $LIB_NAME"
+     LIB_PATH="$MPILIBDIRS $LIB_PATH"
+     CASC_AC_LOG_VAR(MPIINCLUDE MPILIBS MPILIBDIRS, After successfully finding MPI using casc_find_mpi)
+   fi
+fi
+
+dnl
+dnl Set the location of Oges within Overture.
+dnl
+Oges="$Overture/Oges"
+
+dnl
+dnl Create a symbolic link to the file that we need to compile.
+dnl Note that even though this file is a part of Overture it is not compiled
+dnl as part of the Overture build process.  It's not at all clear how to get
+dnl Overture to compile the file so we just make a link to it and compile it
+dnl ourselves.
+dnl
+rm -f PETScEquationSolver.C
+ln -s $Oges/PETScEquationSolver.C PETScEquationSolver.C
+
+dnl
+dnl Set the necessary include paths.
+dnl
+DATA_MOVE_INC_PATH="-DHAVE_CONFIG_H -I$Overture/A++/../include -I$Overture/A++/../PARTI -I$Overture/A++/../PADRE/src -I$Overture/A++/../PADRE/PGSLIB -fPIC $INC_PATH"
+INC_PATH="$DASH_D -I. -I$Overture/include -I$Overture/A++/include $INC_PATH -I$Overture/HDF/include -I$PETSC_DIR/include -I$Overture/OpenGL/include"
+
+dnl
+dnl Set the necessary lib paths.
+dnl
+if test "$fortran_name" = "pgf77"; then
+   LIB_PATH="-L/usr/local/tools/pmgr/lib ${LIB_PATH}"
+fi
+LIB_PATH="-L$Overture/lib -L$Overture/HDF/lib $PETSC_LIB_PATH -L$Overture/A++/lib -L$Overture/OpenGL/lib64 $SUPERLU_LIB_PATH $SUPERLU_DIST_LIB_PATH $PARMETIS_LIB_PATH $METIS_LIB_PATH $LIB_PATH -L/usr/lib64 -L/usr/lib64/perl5/CORE -L./tbox"
+
+dnl
+dnl Set the necessary libs.
+dnl
+OVERTURE_LIBS="-lOverture -lOverture_static -lOgmg"
+HDF_LIBS="-lhdf5 -ljpeg -lz"
+PETSC_LIBS="-lpetsc"
+SUPERLU_LIBS="-lsuperlu"
+SUPERLU_DIST_LIBS="-lsuperlu_dist -llapack"
+PARMETIS_LIBS="-lparmetis"
+METIS_LIBS="-lmetis"
+APLUSPLUS_LIBS="-lPpp -lPpp_static -lpthread -ldl -lrt -lstdc++ -lm"
+OPENGL_LIBS="-lGL -lGLU -lOSMesa"
+MOTIF_LIBS="-lXm"
+XLIBS="-lXp -lXt -lXmu -lXi -lXext -lX11"
+PERL_LIBS="-lperl -lresolv -lnsl -ldl -lm -lcrypt -lutil -lpthread -lc"
+TBOX_LIBS="-ltbox"
+
+LIB_NAME="$OVERTURE_LIBS $HDF_LIBS $PETSC_LIBS $SUPERLU_LIBS $SUPERLU_DIST_LIBS $PARMETIS_LIBS $METIS_LIBS $APLUSPLUS_LIBS $LIB_NAME $OPENGL_LIBS $MOTIF_LIBS $XLIBS $PERL_LIBS $TBOX_LIBS"
+  
+dnl
+dnl Support rpath syntax by adding it to the LIB_PATH variable.
+dnl
+CASC_AC_LOG_VAR(LIB_PATH, before adding rpath syntax)
+CASC_LIBS_ADD_RPATH(LIB_PATH,LIB_PATH,1)
+CASC_AC_LOG_VAR(LIB_PATH, after adding rpath syntax)
+
+dnl
+dnl Set DOXYGEN_BIN to the doxygen binary.
+dnl
+
+CASC_PATH_PROG(DOXYGEN_BIN,doxygen)
+CASC_AC_LOG_VAR(DOXYGEN_BIN)
+
+dnl
+dnl Set the directory for doxygen documentation.
+dnl
+AC_ARG_WITH([dox-output-dir],
+[AS_HELP_STRING([--with-dox-output-dir=DIR],
+   [Specify full where Doxygen documentation is generated.  Default is the docs
+   directory in the compile tree.])])
+if test -n "$with_dox_output_dir"; then
+  if echo "$with_dox_output_dir" | grep -v '^/' ; then
+    AC_MSG_ERROR(You must give a full path with --with-dox-output-dir=DIR)
+  fi
+  dox_output_dir="$with_dox_output_dir"
+  # Make sure dox_output_dir ends with / so because the doxygen
+  # configuration files simply append a subdirectory name.
+  [dox_output_dir="`echo $dox_output_dir | sed 's:\([^/]\)$:\1/:'`"]
+fi
+AC_SUBST(dox_output_dir)
+
+AC_SUBST(Overture)
+AC_SUBST(CC)
+AC_SUBST(CXX)
+AC_SUBST(F77)
+AC_SUBST(CXX_FLAGS)
+AC_SUBST(C_FLAGS)
+AC_SUBST(F77_FLAGS)
+AC_SUBST(INC_PATH)
+AC_SUBST(DATA_MOVE_INC_PATH)
+AC_SUBST(LIB_PATH)
+AC_SUBST(LIB_NAME)
+
+subdirs="${subdirs} esyscmd(find . -name Makefile.in -print | sed 's/.\///' | sed 's/Makefile.in//' | sort --ignore-case)"
+
+makefiles="Makefile"
+for i in $subdirs; do makefiles="$makefiles $i/Makefile"; done
+CASC_AC_LOG_VAR(makefiles)
+CASC_AC_LOG_VAR(subdirs)
+
+AC_OUTPUT([${makefiles} docs/Doxyfile],[],[])
