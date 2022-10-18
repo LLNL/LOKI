@@ -1,42 +1,17 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _PARTICLE_H_
 #define _PARTICLE_H_
+
+#include "tbox/Pointer.H"
+#include "ProblemDomain.H"
 
 namespace Loki {
 
@@ -56,7 +31,10 @@ public:
    /**
     * @brief Constructor.
     *
-    * @param[in] a_starting_time Time at which particles start to move.
+    * @param[in] a_starting_time For tracking particles the time at which
+    *                            particles start to move.  For noise source
+    *                            particles the time over which their strength
+    *                            ramps up.
     * @param[in] a_charge Charge
     * @param[in] a_mass Mass
     * @param[in] a_xinit Initial x position
@@ -223,8 +201,101 @@ public:
       return m_noise_source_weight;
    }
 
+   /**
+    * @brief Adds a multiple of a vector of particles to to another.
+    *
+    * @param[in,out] a_particles The particles to be incremented.
+    * @param[in] a_increment_particles The particle increment.
+    * @param[in] a_factor Factor applied to a_increment_particles.
+    * @param[in] a_sum_reduce_inc If true, sum reduce the particle increment.
+    *                             This is necessary at different points in the
+    *                             RK schemes.
+    * @param[in] a_comm The communicator the sum reduction is performed on.
+    */
+   static
+   void
+   addParticleData(
+      vector<Particle>& a_particles,
+      const vector<Particle>& a_increment_particles,
+      double a_factor,
+      bool a_sum_reduce_inc,
+      MPI_Comm a_comm);
+
+   /**
+    * @brief Copy the information from a_rhs_particles into a_particles.
+    *
+    * @param a_particles Particle information destination.
+    * @param a_rhs_particles Particle information source.
+    */
+   static
+   void
+   copyParticleData(
+      vector<Particle>& a_particles,
+      const vector<Particle>& a_rhs_particles);
+
+   /**
+    * @brief Set the boundary conditions appropriate to the particles.
+    *
+    * @param a_particles The particles.
+    * @param a_domain Information about the configuration space extents of the
+    *                 problem so that the particles are properly bounded.
+    * @param a_vmin Lower bound of the velocity extents of the problem.
+    * @param a_vmax Upper bound of the velocity extents of the problem.
+    * @param a_reflect If true reflect particles crossing physical boundary.
+   */
+   static
+   void
+   setBC(
+      vector<Particle>& a_particles,
+      const tbox::Pointer<ProblemDomain>& a_domain,
+      const double* a_vmin,
+      const double* a_vmax,
+      bool a_reflect);
+
+   /**
+    * @brief Write the supplied particles to a particle restart file.
+    *
+    * @param a_particle_file_name The base part of the particle restart file.
+    * @param a_particles The particles whose data is to be written.
+    * @param a_write_noise_source_weight If true these are noise source
+    *                                    particles.
+    */
+   static
+   void
+   putParticlesToRestart(const string& a_particle_file_name,
+      const vector<Particle>& a_particles,
+      bool a_write_noise_source_weight);
+
+   /**
+    * @brief Read the particle data into the supplied particles.
+    *
+    * @param a_particle_file The base part of the particle restart file.
+    * @param a_particles The container for the particles whose data is to be
+    *                    read.
+    * @param a_domain Information about the configuration space extents of the
+    *                 problem so that the particles are properly bounded.
+    * @param a_vmin Lower bound of the velocity extents of the problem.
+    * @param a_vmax Upper bound of the velocity extents of the problem.
+    * @param a_is_em_process True if this is a Poisson/Maxwell process.
+    * @param a_read_noise_source_weight If true these are noise source
+    *                                   particles.
+    *
+    * @return The number of particles read.
+    */
+   static
+   int
+   readParticleData(string& a_particle_file,
+      vector<Particle>& a_particles,
+      const tbox::Pointer<ProblemDomain>& a_domain,
+      const double* a_vmin,
+      const double* a_vmax,
+      bool a_is_em_process,
+      bool a_read_noise_source_weight);
+
 private:
-   // Starting time.
+   // Starting time.  For tracking particles the time at which particles start
+   // to move.  For noise source particles the time over which their strength
+   // ramps up.
    double m_starting_time;
 
    // Charge.

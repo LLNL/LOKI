@@ -1,46 +1,19 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _PERTURBED_MAXWELLIAN_IC_H_
 #define _PERTURBED_MAXWELLIAN_IC_H_
 
 #include "ICInterface.H"
-#include "Overture.h"
-#include "ParmParse.H"
+#include "tbox/Pointer.H"
+#include "LokiInputParser.H"
+#include <vector>
 
 namespace Loki {
 
@@ -58,13 +31,13 @@ public:
     * @brief Constructor.
     *
     * @param[in] a_pp Where the input parameters are to be found.
-    * @param[in] a_vflowinitx The initial flow velocity in x.
-    * @param[in] a_vflowinity The initial flow velocity in y.
+    * @param[in] a_domain Information about the problem domain.
+    * @param[in] a_mass Mass of the species being initialized.
     */
    PerturbedMaxwellianIC(
-      ParmParse& a_pp,
-      real a_vflowinitx,
-      real a_vflowinity);
+      LokiInputParser& a_pp,
+      const ProblemDomain& a_domain,
+      double a_mass);
 
    /**
     * @brief Destructor.
@@ -77,22 +50,41 @@ public:
    //! @name Implementation of ICInterface interface.
 
    /**
-    * @brief Compute the initial conditions of u at the supplied time.
+    * @brief Retrieve cached initial condition and set a_u to it.
     *
-    * @param[out] a_u The thing to compute.
-    * @param[in] a_domain Information about the problem domain.
-    * @param[in] a_grown_global_box The global box for the entire problem with
-    *                               an additional set of ghosts because that's
-    *                               how Overture does things.
-    * @param[in] a_time The time at which u is to be computed.
+    * @param[out] a_u The KineticSpecies distribution function to set.
     */
    virtual
    void
    set(
-      RealArray& a_u,
-      const ProblemDomain& a_domain,
-      const tbox::Box& a_grown_global_box,
-      real a_time) const;
+      ParallelArray& a_u) const;
+
+   /**
+    * @brief Compute and cache the initial condition for the points in the
+    *        supplied array.
+    *
+    * @param[in] a_u Domain over which initial condition is cached.
+    */
+   virtual
+   void
+   cache(
+      const ParallelArray& a_u);
+
+   /**
+    * @brief Retrieve the cached initial condition at the requested point.
+    *
+    * @param[in] a_i1 x index
+    * @param[in] a_i2 y index
+    * @param[in] a_i3 vx index
+    * @param[in] a_i4 vy index
+    */
+   virtual
+   double
+   getIC_At_Pt(
+      int a_i1,
+      int a_i2,
+      int a_i3,
+      int a_i4) const;
 
    /**
     * @brief Print the driver's parameters.
@@ -100,19 +92,6 @@ public:
    virtual
    void
    printParameters() const;
-
-   // FIXME: When setting boundary conditions the KineticSpecies passes the
-   // initial condition parameters to its fortran routines which "know"
-   // something about how initial conditions are set.  This seems very wrong.
-   /**
-    * @brief Returns object's parameters.
-    */
-   virtual
-   const RealArray&
-   parameters() const
-   {
-      return m_parameters;
-   }
 
    //@}
 
@@ -126,7 +105,7 @@ public:
    static
    bool
    isType(
-      const aString& a_name);
+      const string& a_name);
 
 private:
    // Unimplemented default constructor.
@@ -144,29 +123,7 @@ private:
    // Parse the input parameters.
    void
    parseParameters(
-      ParmParse& a_pp);
-
-   // Indices of specific parameters in m_parameters.
-   enum {
-      ALPHA,
-      BETA,
-      VX0,
-      VY0,
-      VFLOWINITX,
-      VFLOWINITY,
-      X_WAVE_NUMBER,
-      Y_WAVE_NUMBER,
-      FLOW_VEL_PHI,
-      FRAC,
-      A,
-      KX1,
-      KY1,
-      B,
-      KX2,
-      C,
-      KY2,
-      SPATIAL_PHI,
-      NUM_PARAMS};
+      LokiInputParser& a_pp);
 
    // Type of initial condition:
    // 1 = built in
@@ -174,14 +131,37 @@ private:
    // 3 = Maxwellian with noise
    int m_ic_option;
 
+   // If true the thermal behavior is maxwellian.  Otherwise it is Juttner.
+   bool m_maxwellian_thermal;
+
+   // The implementation of the requested thermal behavior.
+   tbox::Pointer<ThermalBehavior> m_thermal;
+
    // The parameters necessary for the evaluation of this initial condition.
-   RealArray m_parameters;
+   double m_tx;
+   double m_ty;
+   double m_vx0;
+   double m_vy0;
+   double m_x_wave_number;
+   double m_y_wave_number;
+   double m_flow_vel_phi;
+   double m_a;
+   double m_kx1;
+   double m_ky1;
+   double m_b;
+   double m_kx2;
+   double m_c;
+   double m_ky2;
+   double m_spatial_phi;
+
+   // Domain length in x.
+   double m_Lx;
 
    // Noise amplitudes for Maxwellian initial condition
-   RealArray m_noise_amp;
+   vector<double> m_noise_amp;
 
    // Noise phases for Maxwellian initial condition
-   RealArray m_noise_phase;
+   vector<double> m_noise_phase;
 };
 
 } // end namespace Loki

@@ -1,1 +1,1 @@
-0.0 1.0e-14 1e-2 1.0e-8 tstol emDamping emDamping 2 5 0
+dist_tol tstol field_tol emDamping emDamping 2 0

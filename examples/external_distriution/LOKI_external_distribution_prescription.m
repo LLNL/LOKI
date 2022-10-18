@@ -75,9 +75,6 @@ function LOKI_external_distribution_prescription
     fract = 0.5;
     
     % Solution order (4 or 6); determines number of ghost cells.
-    % Overture's weirdness demands 2*nghost on EACH side of the
-    % distribution (i.e., 4*nghost extra cells along one dimension). This
-    % is taken care of by the coding below.
     sol_order = 6;
     
 %-------------------------- End of user input -----------------------------
@@ -205,11 +202,10 @@ function LOKI_external_distribution_prescription
             error('Unknown solution order')
         end
     
-        % Overture requires 2*nghost on EACH side and along each dimension
-        rhoout = zeros(nx+4*nghost, ny+4*nghost);
-        rhoout(2*nghost+1:2*nghost+nx,2*nghost+1:2*nghost+ny)=rho.';
+        rhoout = zeros(nx+2*nghost, ny+2*nghost);
+        rhoout(nghost+1:nghost+nx,nghost+1:nghost+ny)=rho.';
         
-        h5create(fout, '/2D dist', [nx+4*nghost, ny+4*nghost]);
+        h5create(fout, '/2D dist', [nx+2*nghost, ny+2*nghost]);
         h5write(fout, '/2D dist', rhoout);
         fprintf('File written to: %s\n',fout);
         

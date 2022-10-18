@@ -1,48 +1,19 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _SUMMATION_SCHEDULE_H_
 #define _SUMMATION_SCHEDULE_H_
 
-#include "Overture.h"
+#include "ParallelArray.H"
 #include "Directions.H"
-#include "ProblemDomain.H"
-#include "tbox/Pointer.H"
-#include "tbox/Dimension.H"
+#include "tbox/Box.H"
+#include <mpi.h>
 
 namespace Loki {
 
@@ -61,16 +32,15 @@ public:
     * @brief Constructor.
     *
     * @param[in] a_local_src_array The local array to be summed.
-    * @param[in] a_local_interior_box Range of the summation.
+    * @param[in] a_dist_func A global 4D array which describes the decomposition
+    *                        of the 4D processors.
     * @param[in] a_domain_box Global problem domain box.
-    * @param[in] a_processor_range Processors involved in summation.
-    * @param[in] a_comm Communicator corresponding to processor_range
+    * @param[in] a_comm Communicator corresponding to processor_range.
     */
    SummationSchedule(
-      const RealArray& a_local_src_array,
-      const tbox::Box& a_local_interior_box,
+      const ParallelArray& a_local_src_array,
+      const ParallelArray& a_dist_func,
       const tbox::Box& a_domain_box,
-      const Range& a_processor_range,
       const MPI_Comm& a_comm);
 
    /**
@@ -85,7 +55,7 @@ public:
     */
    void
    execute(
-      realArray& a_global_dst_array);
+      ParallelArray& a_global_dst_array);
 
 private:
    // Unimplemented default constructor.
@@ -100,25 +70,10 @@ private:
    operator = (
       const SummationSchedule& rhs);
 
-   // Compute range of local destination.
-   void
-   computeLocalDstIndexArray(
-      const tbox::Box& a_local_interior_box);
-
-   // Compute range of global destination.
-   void
-   computeGlobalDstIndexArray(
-      const tbox::Box& a_domain_box);
-
-   // Constructs set of processors that hold local reduced data.
-   void
-   constructSetOfProcessors(
-      const Range& a_processor_range);
-
    // Construct communicator over which summation takes place.
    void
    constructCommunicator(
-      const tbox::Box& a_local_interior_box,
+      const ParallelArray::Box& a_local_interior_box,
       const tbox::Box& a_domain_box,
       const MPI_Comm& a_comm);
 
@@ -128,10 +83,10 @@ private:
    bool
    isInRange(
       int a_proc_id,
-      const Range& a_processor_range)
+      int a_proc_lo,
+      int a_proc_hi)
    {
-      return ((a_proc_id >= a_processor_range.getBase()) &&
-              (a_proc_id <= a_processor_range.getBound()));
+      return ((a_proc_id >= a_proc_lo) && (a_proc_id <= a_proc_hi));
    }
 
    // Returns true if this is a head node.
@@ -141,39 +96,40 @@ private:
       return m_summation_comm_id == 0;
    }
 
-   // Returns true if this processor sends or receives data.
-   bool
-   thisProcessorSendsOrReceivesData(
-      const bool& a_this_processor_will_receive_data)
-   {
-      return (m_this_processor_has_data || a_this_processor_will_receive_data);
-   }
+   // Precomputes the destination processors to send data to.
+   void
+   computeSendTargets(
+      ParallelArray& a_global_dst_array);
+
+   // Precomputes the head nodes to receive data from.
+   void
+   computeRecvTargets(
+      ParallelArray& a_global_dst_array);
+
+   // Send the summed data from the head processors to the destination
+   // processors.
+   void
+   sendHeadProcDataToDestProcs(
+      ParallelArray& a_global_dst_array);
+
+   // The destination processors receive the summed data from the head
+   // processors.
+   void
+   destProcsRecvHeadProcData(
+      ParallelArray& a_global_dst_array);
 
    // Local source of summation.
-   const RealArray& m_local_src_array;
+   const ParallelArray& m_local_src_array;
+
+   // Distribution function for description of decomposition of species
+   // summation is for.
+   const ParallelArray& m_dist_func;
 
    // Local result of summation.
-   RealArray m_local_dst_array;
-
-   // The range of data in m_local_dst_array to be communicated to the global
-   // destination array.
-   Array<Index> m_local_dst_index;
-
-   // The range of data in the global destination array that receives data from
-   // m_local_dst_array.
-   Array<Index> m_global_dst_index;
-
-   // The processor IDs based on m_comm of the head nodes.
-   IntegerArray m_proc_set;
+   ParallelArray m_local_dst_array;
 
    // True if this processor is involved in the reduction.
    bool m_is_in_proc_range;
-
-   // True if this processor has data.
-   bool m_this_processor_has_data;
-
-   // Processor ID on the communicator in the constructor.
-   int m_comm_id;
 
    // The communicator containing all processors dealing with the same piece of
    // configuration space.
@@ -181,6 +137,31 @@ private:
 
    // The processor ID on m_reduction_comm.
    int m_summation_comm_id;
+
+   // If true, the communication pattern must be precompute.
+   bool m_need_communication_pattern;
+
+   // The processors that head nodes send data to.
+   vector<int> m_send_targets;
+
+   // The head nodes that the reduction destination receives data from.
+   vector<int> m_recv_targets;
+
+   // The box describing the local part of the data sent from each head node.
+   vector<ParallelArray::Box> m_recv_local_boxes;
+
+   // The box describing the data sent from each head node.
+   vector<ParallelArray::Box> m_recv_boxes;
+
+   // Tag for send of source array to destination array.
+   static const int s_TAG;
+
+   // Indicates if the global reduction should only be sent to the head or all
+   // nodes on the communicator.
+   enum ReductionTargets {
+     REDUCE_TO_ALL_NODES = -1,
+     REDUCE_TO_HEAD_NODE
+   };
 };
 
 } // end namespace Loki

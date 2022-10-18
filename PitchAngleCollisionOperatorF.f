@@ -1,66 +1,93 @@
 c
-c Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+c Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+c See the top-level LICENSE file for details.
 c Produced at the Lawrence Livermore National Laboratory
 c
-c Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
-c Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
-c hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
-c berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
-c Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
-c Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
-c CH-1015 Lausanne, Switzerland).
-c CODE-744849
-c
-c All rights reserved.
-c
-c This file is part of Loki.  For details, see.
-c
-c Permission is hereby granted, free of charge, to any person obtaining a
-c copy of this software and associated documentation files (the "Software"),
-c to deal in the Software without restriction, including without limitation
-c the rights to use, copy, modify, merge, publish, distribute, sublicense,
-c and/or sell copies of the Software, and to permit persons to whom the
-c Software is furnished to do so, subject to the following conditions:
-c
-c The above copyright notice and this permission notice shall be included in
-c all copies or substantial portions of the Software.
-c
-c THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-c OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-c FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
-c THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-c LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-c FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-c DEALINGS IN THE SOFTWARE.
+c SPDX-License-Identifier: MIT
 c
 c Fortran functions called by PitchAngleCollisionOperator.
 c
 
       subroutine evaluateCollisionality(
-     *     nuei, vx, vy,
-     *     vceil, vfloor, vthermal, nuCoefficient, vmax)
+     *     nuei, vx, vy, vxgrid, vygrid, range_lo, range_hi,
+     *     vxmin, vxmax, vymin, vymax, vfloor, vthermal,
+     *     nuCoefficient, solution_order)
 c
 c.. compute and add a simple collision operator to the RHS ...
       implicit none
 c
 c.. declarations of incoming variables 
-      real nuei, vx, vy
-      real vceil, vfloor, vthermal, nuCoefficient, vmax
+      real nuei, vx, vy, vxgrid, vygrid, vxmin, vxmax, vymin, vymax
+      real vfloor, vthermal, nuCoefficient
+      real range_lo(1:2), range_hi(1:2)
+      integer solution_order
 c
 c.. declarations of local variables
-      real v, alpha
-      real one, four, pi
+      real v, va, vb
+      real alpha, vxra, vxrb, xi
+      real beta, vyra, vyrb, eta
 c
-      one  = 1.0
-      four = 4.0
-      pi   = four*atan(one)
-
-      v = min(max(sqrt(vx**2+vy**2), vfloor), vmax)
+      vxra = range_lo(1)
+      vxrb = range_hi(1)
+      vyra = range_lo(2)
+      vyrb = range_hi(2)
+      v = max(sqrt(vx**2+vy**2), vfloor)
       nuei = nuCoefficient*(vthermal/v)**3
-      if (v .ge. vceil) then
-        alpha = 1.0-(sin(0.5*pi*(v-vceil)/(vmax-vceil)))**2
-        nuei = nuei*alpha
+      if (vxgrid .lt. vxra .and. vxgrid .ge. vxmin) then
+        va = vxra
+        vb = vxmin
+        xi = (vxgrid-va)/(vb-va)
+      else if (vxgrid .gt. vxrb .and. vxgrid .le. vxmax) then
+        va = vxrb
+        vb = vxmax
+        xi = (vxgrid-va)/(vb-va)
+      else if (vxgrid .lt. vxmin .or. vxgrid .gt. vxmax) then
+        xi = 1.0
+      else
+        xi = 0.0
+      endif
+      if (vygrid .lt. vyra .and. vygrid .ge. vymin) then
+        va = vyra
+        vb = vymin
+        eta = (vygrid-va)/(vb-va)
+      else if (vygrid .gt. vyrb .and. vygrid .le. vymax) then
+        va = vyrb
+        vb = vymax
+        eta = (vygrid-va)/(vb-va)
+      else if (vygrid .lt. vymin .or. vygrid .gt. vymax) then
+        eta = 1.0
+      else
+        eta = 0.0
+      endif
+
+      if (solution_order .eq. 4) then
+         alpha = 1.0 + xi**4*(
+     *         +20.0*xi**3
+     *         -70.0*xi**2
+     *         +84.0*xi
+     *         -35.0)
+         beta = 1.0 + eta**4*(
+     *        +20.0*eta**3
+     *        -70.0*eta**2
+     *        +84.0*eta
+     *        -35.0)
+      else
+         alpha = 1.0 + xi**6*(
+     *         +252.0 *xi**5
+     *         -1386.0*xi**4
+     *         +3080.0*xi**3
+     *         -3465.0*xi**2
+     *         +1980.0*xi
+     *         -462.0)
+         beta = 1.0 + eta**6*(
+     *        +252.0 *eta**5
+     *        -1386.0*eta**4
+     *        +3080.0*eta**3
+     *        -3465.0*eta**2
+     *        +1980.0*eta
+     *        -462.0)
       end if
+      nuei = nuei*alpha*beta
 c
       return
       end
@@ -72,7 +99,9 @@ c
      *     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      *     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      *     xlo, xhi, dx,
-     *     vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy)
+     *     velocities, range_lo, range_hi,
+     *     vfloor, Vth, nuCoefficient, IVx, IVy,
+     *     do_relativity)
 c
 c.. compute and add a simple collision operator to the RHS ...
       implicit none
@@ -81,27 +110,32 @@ c.. declarations of incoming variables
       integer nd1a, nd1b, nd2a, nd2b
       integer nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+      integer do_relativity
 c
       real rhs(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real f(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-c
-      real vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy
-c
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real Vth(nd1a:nd1b, nd2a:nd2b)
+      real IVx(nd1a:nd1b, nd2a:nd2b)
+      real IVy(nd1a:nd1b, nd2a:nd2b)
+      real range_lo(1:2), range_hi(1:2)
+      real vfloor, nuCoefficient
       real xlo(1:4), xhi(1:4), dx(1:4)
 c
 c.. declarations of local variables
       integer i1, i2, i3, i4
       integer gi3, gi4
-      real vxt, vyt
+      integer solution_order, vrolloff
+      real vxgrid, vygrid, vxt, vyt
       real nuei
       real temp
+      real vthermal, vflowx, vflowy
 c
       real nu(-2:2, -2:2)
       real vx(-2:2, -2:2)
       real vy(-2:2, -2:2)
 c
-      real vx0, vy0, dvx, dvy
-      real vmax
+      real dvx, dvy, vxmin, vxmax, vymin, vymax, vxlo, vxhi, vylo, vyhi
 c
 c
 c     generated declarations
@@ -247,36 +281,52 @@ c     generated declarations
         real t91
         real t94
 c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
+      solution_order = 4
+      vrolloff = 3
+      vxlo = xlo(3)
+      vxhi = xhi(3)
+      vylo = xlo(4)
+      vyhi = xhi(4)
       dvx = dx(3)
       dvy = dx(4)
+      vxmin = vxlo + vrolloff*dvx
+      vxmax = vxhi - vrolloff*dvx
+      vymin = vylo + vrolloff*dvy
+      vymax = vyhi - vrolloff*dvy
 c
-c      vmax = min(xhi(3), xhi(4))
-      vmax = min(max(abs(xhi(3)), abs(vx0)),
-     *           max(abs(xhi(4)), abs(vy0)))
 c
       do i4 = n4a, n4b
       do i3 = n3a, n3b
+      do i2 = n2a, n2b
+      do i1 = n1a, n1b
+        vthermal = Vth(i1,i2)
+        vflowx = IVx(i1, i2)
+        vflowy = IVy(i1, i2)
 
         ! setup variable coefficient arrays
         do gi4 = -2, 2
         do gi3 = -2, 2
 
-          vxt = vx0+(0.5+(i3+gi3))*dvx-vflowx
-          vyt = vy0+(0.5+(i4+gi4))*dvy-vflowy
+            vxgrid = velocities(i3+gi3, i4+gi4, 0)
+            vygrid = velocities(i3+gi3, i4+gi4, 1)
+            vxt = vxgrid-vflowx
+            vyt = vygrid-vflowy
+            ! For relativity the grid is momentum based
+            if (do_relativity .eq. 1) then
+              vxgrid = vxlo + (i3+gi3+0.5)*dvx
+              vygrid = vylo + (i4+gi4+0.5)*dvy
+            end if
 
           call evaluateCollisionality(
-     *       nuei, vxt, vyt,
-     *       vceil, vfloor, vthermal, nuCoefficient, vmax)
+     *       nuei, vxt, vyt, vxgrid, vygrid, range_lo, range_hi,
+     *       vxmin, vxmax, vymin, vymax,
+     *       vfloor, vthermal, nuCoefficient, solution_order)
 
           vx(gi3, gi4) = vxt
           vy(gi3, gi4) = vyt
           nu(gi3, gi4) = nuei
         end do
         end do
-      do i2 = n2a, n2b
-      do i1 = n1a, n1b
 ccccc
 cc generated code 
 ccccc
@@ -475,7 +525,9 @@ c
      *     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      *     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      *     xlo, xhi, dx,
-     *     vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy)
+     *     velocities, range_lo, range_hi,
+     *     vfloor, Vth, nuCoefficient, IVx, IVy,
+     *     do_relativity)
 c
 c.. compute and add a simple collision operator to the RHS ...
       implicit none
@@ -484,27 +536,32 @@ c.. declarations of incoming variables
       integer nd1a, nd1b, nd2a, nd2b
       integer nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+      integer do_relativity
 c
       real rhs(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real f(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-c
-      real vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy
-c
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real Vth(nd1a:nd1b, nd2a:nd2b)
+      real IVx(nd1a:nd1b, nd2a:nd2b)
+      real IVy(nd1a:nd1b, nd2a:nd2b)
+      real range_lo(1:2), range_hi(1:2)
+      real vfloor, nuCoefficient
       real xlo(1:4), xhi(1:4), dx(1:4)
 c
 c.. declarations of local variables
       integer i1, i2, i3, i4
       integer gi3, gi4
-      real vxt, vyt
+      integer solution_order, vrolloff
+      real vxgrid, vygrid, vxt, vyt
       real nuei
       real temp
+      real vthermal, vflowx, vflowy
 c
       real nu(-3:3, -3:3)
       real vx(-3:3, -3:3)
       real vy(-3:3, -3:3)
 
-      real vx0, vy0, dvx, dvy
-      real vmax
+      real dvx, dvy, vxmin, vxmax, vymin, vymax, vxlo, vxhi, vylo, vyhi
 c
 c
 c     generated declarations
@@ -888,35 +945,51 @@ c     generated declarations
         real t994
         real t998
 c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
+      solution_order = 6
+      vrolloff = 4
+      vxlo = xlo(3)
+      vxhi = xhi(3)
+      vylo = xlo(4)
+      vyhi = xhi(4)
       dvx = dx(3)
       dvy = dx(4)
-c
-      vmax = min(max(abs(xhi(3)), abs(vx0)),
-     *           max(abs(xhi(4)), abs(vy0)))
+      vxmin = vxlo + vrolloff*dvx
+      vxmax = vxhi - vrolloff*dvx
+      vymin = vylo + vrolloff*dvy
+      vymax = vyhi - vrolloff*dvy
 c
       do i4 = n4a, n4b
       do i3 = n3a, n3b
+      do i2 = n2a, n2b
+      do i1 = n1a, n1b
+        vthermal = Vth(i1,i2)
+        vflowx = IVx(i1, i2)
+        vflowy = IVy(i1, i2)
 
         ! setup variable coefficient arrays
         do gi4 = -3, 3
         do gi3 = -3, 3
 
-          vxt = vx0+(0.5+(i3+gi3))*dvx-vflowx
-          vyt = vy0+(0.5+(i4+gi4))*dvy-vflowy
+            vxgrid = velocities(i3+gi3, i4+gi4, 0)
+            vygrid = velocities(i3+gi3, i4+gi4, 1)
+            vxt = vxgrid-vflowx
+            vyt = vygrid-vflowy
+            ! For relativity the grid is momentum based
+            if (do_relativity .eq. 1) then
+              vxgrid = vxlo + (i3+gi3+0.5)*dvx
+              vygrid = vylo + (i4+gi4+0.5)*dvy
+            end if
 
           call evaluateCollisionality(
-     *       nuei, vxt, vyt,
-     *       vceil, vfloor, vthermal, nuCoefficient, vmax)
+     *       nuei, vxt, vyt, vxgrid, vygrid, range_lo, range_hi,
+     *       vxmin, vxmax, vymin, vymax,
+     *       vfloor, vthermal, nuCoefficient, solution_order)
 
           vx(gi3, gi4) = vxt
           vy(gi3, gi4) = vyt
           nu(gi3, gi4) = nuei
         end do
         end do
-      do i2 = n2a, n2b
-      do i1 = n1a, n1b
 ccccc
 cc generated code 
 ccccc
@@ -1399,7 +1472,9 @@ c
      *     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      *     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      *     xlo, xhi, dx,
-     *     vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy)
+     *     velocities, range_lo, range_hi,
+     *     vfloor, Vth, nuCoefficient, IVx, IVy,
+     *     do_relativity)
 c
 c.. compute and add a simple collision operator to the RHS ...
       implicit none
@@ -1408,38 +1483,63 @@ c.. declarations of incoming variables
       integer nd1a, nd1b, nd2a, nd2b
       integer nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+      integer do_relativity
 c
       real rhs (nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real f   (nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-c
-      real vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy
-c
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real Vth(nd1a:nd1b, nd2a:nd2b)
+      real IVx(nd1a:nd1b, nd2a:nd2b)
+      real IVy(nd1a:nd1b, nd2a:nd2b)
+      real range_lo(1:2), range_hi(1:2)
+      real vfloor, nuCoefficient
       real xlo(1:4), xhi(1:4), dx(1:4)
 c
 c.. declarations of local variables
       integer i1, i2, i3, i4
-      real vx, vy, vx0, vy0, dvx, dvy
+      integer solution_order, vrolloff
+      real vxgrid, vygrid, vx, vy, dvx, dvy, vxmin, vxmax, vymin, vymax
       real fvxp2, fvxp1, fvxm1, fvxm2
       real fvxvx, fvyvy, fvxvy
       real fvx, fvy
       real nuei
       real temp
-      real vmax
+      real vthermal, vflowx, vflowy, vxlo, vxhi, vylo, vyhi
 c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
+      solution_order = 4
+      vrolloff = 3
+      vxlo = xlo(3)
+      vxhi = xhi(3)
+      vylo = xlo(4)
+      vyhi = xhi(4)
       dvx = dx(3)
       dvy = dx(4)
-c      vmax = min(xhi(3), xhi(4))
-      vmax = min(max(abs(xhi(3)), abs(vx0)),
-     *           max(abs(xhi(4)), abs(vy0)))
+      vxmin = vxlo + vrolloff*dvx
+      vxmax = vxhi - vrolloff*dvx
+      vymin = vylo + vrolloff*dvy
+      vymax = vyhi - vrolloff*dvy
 
       do i4 = n4a, n4b
       do i3 = n3a, n3b
       do i2 = n2a, n2b
       do i1 = n1a, n1b
-        vx = vx0+(0.5+i3)*dvx-vflowx
-        vy = vy0+(0.5+i4)*dvy-vflowy
+      vthermal = Vth(i1,i2)
+      vflowx = IVx(i1, i2)
+      vflowy = IVy(i1, i2)
+      vxgrid = velocities(i3, i4, 0)
+      vygrid = velocities(i3, i4, 1)
+      vx = vxgrid-vflowx
+      vy = vygrid-vflowy
+      ! For relativity the grid is momentum based
+      if (do_relativity .eq. 1) then
+        vxgrid = vxlo + (i3+0.5)*dvx
+        vygrid = vylo + (i4+0.5)*dvy
+      end if
+
+      call evaluateCollisionality(
+     *     nuei, vx, vy, vxgrid, vygrid, range_lo, range_hi,
+     *     vxmin, vxmax, vymin, vymax,
+     *     vfloor, vthermal, nuCoefficient, solution_order)
 
         fvxp2 = 
      *       (-1.0*f(i1, i2, i3+2, i4+2)
@@ -1496,10 +1596,6 @@ c      vmax = min(xhi(3), xhi(4))
      *        +8.0*f(i1, i2, i3, i4+1)
      *        -8.0*f(i1, i2, i3, i4-1)
      *        +1.0*f(i1, i2, i3, i4-2))/(12.0*dvy)
-
-        call evaluateCollisionality(
-     *       nuei, vx, vy,
-     *       vceil, vfloor, vthermal, nuCoefficient, vmax)
         
         temp = nuei*(
      *       vx*vx*fvyvy
@@ -1520,10 +1616,11 @@ c
 c ++++++++++++++
 c
       subroutine appendPitchAngleCollision(
-     *     rhs, f,
+     *     rhs, f, velocities, IVx, IVy, Vth,
      *     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      *     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      *     xlo, xhi, dx,
+     *     range_lo, range_hi,
      *     dparams,
      *     iparams)
 c
@@ -1537,23 +1634,25 @@ c.. declarations of incoming variables
 c
       real rhs(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real f(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real IVx(nd1a:nd1b, nd2a:nd2b)
+      real IVy(nd1a:nd1b, nd2a:nd2b)
+      real Vth(nd1a:nd1b, nd2a:nd2b)
+      real range_lo(1:2), range_hi(1:2)
 c
       real dparams(*)
       integer iparams(*)
 c
       real xlo(1:4), xhi(1:4), dx(1:4)
 c
-      real vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy
-      integer icons, solution_order
+      real vfloor, nuCoefficient
+      integer icons, solution_order, do_relativity
 c
-      vceil = dparams(1)
-      vfloor = dparams(2)
-      vthermal = dparams(3)
-      nuCoefficient = dparams(5)
-      vflowx = dparams(6)
-      vflowy = dparams(7)
+      vfloor = dparams(1)
+      nuCoefficient = dparams(3)
       icons = iparams(1)
       solution_order = iparams(2)
+      do_relativity = iparams(3)
 
       if (icons .eq. 1) then
         if( solution_order .eq. 4 ) then
@@ -1565,7 +1664,10 @@ c
      *         n1a, n1b, n2a, n2b,
      *         n3a, n3b, n4a, n4b,
      *         xlo, xhi, dx,
-     *         vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy)
+     *         velocities,
+     *         range_lo, range_hi,
+     *         vfloor, Vth, nuCoefficient, IVx, IVy,
+     *         do_relativity)
         else
           call conservativePitchAngle_6th(
      *         rhs, f,
@@ -1574,7 +1676,10 @@ c
      *         n1a, n1b, n2a, n2b,
      *         n3a, n3b, n4a, n4b,
      *         xlo, xhi, dx,
-     *         vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy)
+     *         velocities,
+     *         range_lo, range_hi,
+     *         vfloor, Vth, nuCoefficient, IVx, IVy,
+     *         do_relativity)
         end if
       else
         if( solution_order .eq. 4 ) then
@@ -1586,9 +1691,162 @@ c
      *         n1a, n1b, n2a, n2b,
      *         n3a, n3b, n4a, n4b,
      *         xlo, xhi, dx,
-     *         vceil, vfloor, vthermal, nuCoefficient, vflowx, vflowy)
+     *         velocities,
+     *         range_lo, range_hi,
+     *         vfloor, Vth, nuCoefficient, IVx, IVy,
+     *         do_relativity)
         end if
       end if
 c
+      return
+      end
+c
+c +++++++++++++
+c
+      subroutine computePitchAngleSpeciesMoments(
+     *     rN, rGammax, rGammay, u,
+     *     nd1a,nd1b,nd2a,nd2b,nd3a,nd3b,nd4a,nd4b,
+     *     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
+     *     velocities)
+c
+c.. compute interspecies moments
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+      integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+c
+      real rN(nd1a:nd1b, nd2a:nd2b)
+      real rGammax(nd1a:nd1b, nd2a:nd2b)
+      real rGammay(nd1a:nd1b, nd2a:nd2b)
+      real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+c
+c.. declarations of local variables
+      integer i1, i2, i3, i4
+      real vx, vy, uval, eps
+c
+      eps = 1.0e-10
+      rN = 0.0
+      rGammax = 0.0
+      rGammay = 0.0
+
+      do i4 = n4a, n4b
+        do i3 = n3a, n3b
+          vx = velocities(i3, i4, 0)
+          vy = velocities(i3, i4, 1)
+          do i2 = nd2a, nd2b
+            do i1 = nd1a, nd1b
+              uval = max(abs(u(i1, i2, i3, i4)), eps)
+              rN(i1, i2) = rN(i1, i2) + uval
+              rGammax(i1, i2) = rGammax(i1, i2) + vx*uval
+              rGammay(i1, i2) = rGammay(i1, i2) + vy*uval
+            end do
+          end do
+        end do
+      end do
+
+      return
+      end
+c
+c +++++++++++++
+c
+      subroutine computePitchAngleSpeciesReducedFields(
+     *     vx, vy, n, Gammax, Gammay,
+     *     nd1a,nd1b,nd2a,nd2b,nd3a,nd3b,nd4a,nd4b)
+c
+c.. compute interspecies moments
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+c
+      real vx(nd1a:nd1b, nd2a:nd2b)
+      real vy(nd1a:nd1b, nd2a:nd2b)
+      real n(nd1a:nd1b, nd2a:nd2b)
+      real Gammax(nd1a:nd1b, nd2a:nd2b)
+      real Gammay(nd1a:nd1b, nd2a:nd2b)
+c
+c.. declarations of local variables
+      integer i1, i2
+c
+      do i2 = nd2a, nd2b
+        do i1 = nd1a, nd1b
+          vx(i1, i2) = Gammax(i1, i2) / n(i1, i2)
+          vy(i1, i2) = Gammay(i1, i2) / n(i1, i2)
+        end do
+      end do
+
+      return
+      end
+c
+c +++++++++++++
+c
+      subroutine computePitchAngleSpeciesKEC(
+     *     rKEC, rVx0, rVy0, u,
+     *     nd1a,nd1b,nd2a,nd2b,nd3a,nd3b,nd4a,nd4b,
+     *     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
+     *     velocities)
+c
+c.. compute interspecies moments
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+      integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+c
+      real rKEC(nd1a:nd1b, nd2a:nd2b)
+      real rVx0(nd1a:nd1b, nd2a:nd2b)
+      real rVy0(nd1a:nd1b, nd2a:nd2b)
+      real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+c
+c.. declarations of local variables
+      integer i1, i2, i3, i4
+      real vx, vy, uval, eps
+c
+      eps = 1.0e-10
+      do i4 = n4a, n4b
+        do i3 = n3a, n3b
+          vx = velocities(i3, i4, 0)
+          vy = velocities(i3, i4, 1)
+          do i2 = nd2a, nd2b
+            do i1 = nd1a, nd1b
+               uval = max(abs(u(i1, i2, i3, i4)), eps)
+               rKEC(i1, i2) = rKEC(i1, i2) + ((vx - rVx0(i1, i2))**2
+     *           +(vy - rVy0(i1, i2))**2)*uval
+            end do
+          end do
+        end do
+      end do
+
+      return
+      end
+c
+c +++++++++++++
+c
+      subroutine computePitchAngleSpeciesVthermal(
+     *     vthsq, KEC, n,
+     *     nd1a,nd1b,nd2a,nd2b,nd3a,nd3b,nd4a,nd4b)
+c
+c.. compute interspecies moments
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+c
+      real vthsq(nd1a:nd1b, nd2a:nd2b)
+      real KEC(nd1a:nd1b, nd2a:nd2b)
+      real n(nd1a:nd1b, nd2a:nd2b)
+c
+c.. declarations of local variables
+      integer i1, i2
+c
+      do i2 = nd2a, nd2b
+        do i1 = nd1a, nd1b
+          vthsq(i1, i2) = sqrt(0.5 * KEC(i1, i2) / n(i1, i2))
+        end do
+      end do
+
       return
       end

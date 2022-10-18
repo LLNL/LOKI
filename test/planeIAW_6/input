@@ -1,1 +1,1 @@
-1.0e-10 1.0e-30 1.0e-10 1.0e-30 tstol planeIAW_6 planeIAW2D 1 6 0
+dist_tol tstol field_tol planeIAW_6 planeIAW2D 1 0

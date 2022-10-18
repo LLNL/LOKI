@@ -1,38 +1,10 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _RK4_INTEGRATOR_H_
@@ -82,7 +54,7 @@ public:
 
    /**
     * @brief Advance by one time step using 4th-order Runge-Kutta and return
-    * the new time (time + dt).
+    *        the new time (time + dt).
     *
     * @param[out] a_newSoln The solution at the new time.
     * @param[in] a_oldSoln The solution at the old time.
@@ -91,18 +63,18 @@ public:
     *
     * @return New simulation time, a_time + a_dt.
     */
-   real
+   double
    advance(
       TSoln& a_newSoln,
       TSoln& a_oldSoln,
-      real   a_time,
-      real   a_dt)
+      double   a_time,
+      double   a_dt)
    {
       // Useful definitions
-      static const real THIRD = 1.0 / 3.0;
-      real dtOn2 = 0.5 * a_dt;
-      real dtOn3 = THIRD * a_dt;
-      real dtOn6 = 0.5 * dtOn3;
+      static const double THIRD = 1.0 / 3.0;
+      double dtOn2 = 0.5 * a_dt;
+      double dtOn3 = THIRD * a_dt;
+      double dtOn6 = 0.5 * dtOn3;
 
       // Initialize change accumulator
       m_op.zeroSolnData(m_delta);
@@ -179,18 +151,20 @@ private:
       TSoln& a_predSoln,
       const TSoln& a_oldSoln,
       TSoln& a_evalSoln,
-      real a_time,
-      real a_dt,
-      real a_dt_eval,
-      real a_dt_update,
+      double a_time,
+      double a_dt,
+      double a_dt_eval,
+      double a_dt_update,
       int a_stage)
    {
-      m_op.evalRHS(m_rhs, a_evalSoln, a_time, a_dt, a_stage);
-      m_op.addSolnData(m_delta, m_rhs, a_dt_eval);
+      m_op.zeroSolnData(m_rhs);
+      m_op.evalRHS(m_rhs, a_evalSoln, a_time, a_dt, a_stage == 1, a_stage == 4);
+      m_op.addSolnData(m_delta, m_rhs, a_dt_eval, false);
       m_op.copySolnData(a_predSoln, a_oldSoln);
       if (a_stage < 4) {
-         m_op.addSolnData(a_predSoln, m_rhs, a_dt_update);
-      } else {
+         m_op.addSolnData(a_predSoln, m_rhs, a_dt_update, true);
+      }
+      else {
          m_op.addSolnData(a_predSoln, m_delta, a_dt_update, true);
       }
       m_op.postStageAdvance(a_predSoln, a_stage);

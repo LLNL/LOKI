@@ -1,48 +1,19 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _PITCH_ANGLE_COLLISION_OPERATOR_H_
 #define _PITCH_ANGLE_COLLISION_OPERATOR_H_
 
-#include "Overture.h"
-#include "OvertureTypes.h"
-#include "ParmParse.H"
-
+#include "LokiInputParser.H"
 #include "CollisionOperator.H"
+#include "tbox/Pointer.H"
+#include "ReductionSchedule4D.H"
 
 #include <string>
 
@@ -58,11 +29,11 @@ public:
     * @brief Constructor.
     *
     * @param[in] a_pp Where the input parameters are to be found.
-    * @param[in] a_solution_order The order of the solution.
+    * @param[in] a_species The species this operator is associated with.
     */
    PitchAngleCollisionOperator(
-      ParmParse& a_pp,
-      int a_solution_order);
+      LokiInputParser& a_pp,
+      const KineticSpecies* a_species);
 
    /**
     * @brief Destructor.
@@ -75,39 +46,42 @@ public:
    //! @name Implementation of CollisionOperator interface.
 
    /**
+    * @brief Initialize operator given information about supplies species.
+    *
+    * @param[in] a_species The species this operator is assiciated with.
+    */
+   virtual
+   void
+   initialize(
+      KineticSpecies* a_species);
+
+   /**
     * @brief Append the collision operator to the Vlasov rhs given the current
     *        distribution function.
     *
-    * @param[out] a_rhs The distribution function of the rhs of the Vlasov
-    *                   equation.
-    * @param[in] a_u The distribution function at the current RK stage.
-    * @param[in] a_local_box Box describing the bounds of a_rhs and a_u.
-    * @param[in] a_interior_box Box describing the interior of a_rhs and a_u.
-    * @param[in] a_domain Information about the problem domain.
-    * @param[in] a_vflowx Current flow velocity in x.
-    * @param[in] a_vflowy Current flow velocity in y.
+    * @param[out] a_rhs The KineticSpecies of the rhs of the Vlasov equation.
+    * @param[in] a_u The KineticSpecies at the current RK stage.
+    * @param[in] a_dt Current simulation time step.
+    * @param[in] a_last_rk_stage True if called from the last RK stage.
     */
    virtual
    void
    evaluate(
-      RealArray& a_rhs,
-      const RealArray& a_u,
-      const tbox::Box& a_local_box,
-      const tbox::Box& a_interior_box,
-      const ProblemDomain& a_domain,
-      real a_vflowx,
-      real a_vflowy);
+      KineticSpecies& a_rhs,
+      const KineticSpecies& a_u,
+      double a_dt,
+      bool a_last_rk_stage);
 
    /**
     * @brief Compute the real part of lambda for the time step limit.
     *
-    * @param[in] a_dv The smaller velocity resolution.
+    * @param[in] a_u The KineticSpecies at the current RK stage.
     * @return The real part of lambda for the time step limit.
     */
    virtual
-   real
+   double
    computeRealLam(
-      real a_dv) const;
+      KineticSpecies& a_u);
 
    /**
     * @brief Print the operator's parameters.
@@ -115,6 +89,16 @@ public:
    virtual
    void
    printParameters() const;
+
+   /**
+    * @brief Copy collision diagnostic fields into supplied arrays of fields.
+    *
+    * @param[out] a_d Collision diagnostic fields to output.
+    */
+   virtual
+   void
+   copyDiagnosticFields(
+      vector<ParallelArray>& a_d) const;
 
    //@}
 
@@ -128,7 +112,7 @@ public:
    static
    bool
    isType(
-      const aString& a_name);
+      const string& a_name);
 
 private:
    // Unimplemented default constructor.
@@ -143,23 +127,28 @@ private:
    operator = (
       const PitchAngleCollisionOperator& rhs);
 
+   // Construct fundamental arrays used by operator.
+   void
+   constructArrays();
+
+   // Construct the momenta and kinetic energy reduction schedules.
+   void
+   constructReductionSchedules();
+
    // Parse the input parameters.
    void
    parseParameters(
-      ParmParse& a_pp);
+      LokiInputParser& a_pp,
+      const KineticSpecies* a_species);
 
    // The name of this type of collision operator.
-   static const aString s_CLASS_NAME;
+   static const string s_CLASS_NAME;
 
    // Indices of specific parameters in m_dparameters.
    enum {
-      VCEIL,
       VFLOOR,
-      VTHERMAL,
       VTHERMAL_DT,
       NU,
-      VFLOWX,
-      VFLOWY,
       NUM_DPARAMS
    };
 
@@ -167,8 +156,62 @@ private:
    enum {
       ICONS,
       SOLN_ORDER,
+      DO_RELATIVITY,
       NUM_IPARAMS
    };
+
+   // Coordinates of the lower bounds of the range of the collision in velocity
+   // space.
+   vector<double> m_range_lo;
+
+   // Coordinates of the upper bounds of the range of the collision in velocity
+   // space.
+   vector<double> m_range_hi;
+
+   // Locally reduced 2D density.
+   ParallelArray m_rN;
+
+   // Locally reduced 2D x momentum.
+   ParallelArray m_rGammax;
+
+   // Locally reduced 2D y momentum.
+   ParallelArray m_rGammay;
+
+   // Locally reduced 2D kinetic energy.
+   ParallelArray m_rsKEC;
+
+   // Globally reduced 2D density.
+   ParallelArray m_IN;
+
+   // Globally reduced 2D x momentum.
+   ParallelArray m_IGammax;
+
+   // Globally reduced 2D y momentum.
+   ParallelArray m_IGammay;
+
+   // Globally reduced 2D kinetic energy.
+   ParallelArray m_IsKEC;
+
+   // Globally reduced 2D x flow velocity.
+   ParallelArray m_IVx;
+
+   // Globally reduced 2D y flow velocity.
+   ParallelArray m_IVy;
+
+   // Globally reduced 2D v_thermal.
+   ParallelArray m_IVth;
+
+   // Density reduction schedule
+   tbox::Pointer<ReductionSchedule4D> m_N_reduction;
+
+   // x momentum reduction schedule
+   tbox::Pointer<ReductionSchedule4D> m_Gammax_reduction;
+
+   // y momentum reduction schedule
+   tbox::Pointer<ReductionSchedule4D> m_Gammay_reduction;
+
+   // Kinetic energy reduction schedule
+   tbox::Pointer<ReductionSchedule4D> m_skec_reduction;
 };
 
 } // end namespace Loki

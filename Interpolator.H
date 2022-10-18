@@ -1,43 +1,16 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _INTERPOLATOR_H_
 #define _INTERPOLATOR_H_
 
+#include "ParallelArray.H"
 #include "ProblemDomain.H"
 
 namespace Loki {
@@ -103,10 +76,8 @@ public:
       double a_eval_y)
    {
       // Find the "fractional" grid index of the evaluation point.
-      double x_fractional_idx =
-         (a_eval_x-m_domain_x_lo) / m_domain_dx + 2*m_num_x_ghosts;
-      double y_fractional_idx =
-         (a_eval_y-m_domain_y_lo) / m_domain_dy + 2*m_num_y_ghosts;
+      double x_fractional_idx = (a_eval_x-m_domain_x_lo) / m_domain_dx;
+      double y_fractional_idx = (a_eval_y-m_domain_y_lo) / m_domain_dy;
 
       // Now compute the interpolating grid indices.
       computeInterpolatingGridIndices(x_fractional_idx, y_fractional_idx);
@@ -135,56 +106,15 @@ public:
    yInterpolatingGridIndex(
       int a_i) = 0;
 
-   /**
-    * @brief Accessor for number of x grid points in the local box.
-    *
-    * Useful info for client to index into field being interpolated.
-    */
-   int
-   nx()
-   {
-      return m_nx;
-   }
-
-   /**
-    * @brief Accessor for number of y grid points in the local box.
-    *
-    * Useful info for client to index into field being interpolated.
-    */
-   int
-   ny()
-   {
-      return m_ny;
-   }
-
-   /**
-    * @brief Accessor for total number of grid points in the local box.
-    *
-    * Useful info for client to index into field being interpolated.
-    */
-   int
-   nxny()
-   {
-      return m_nxny;
-   }
-
 protected:
    // Constructor.
    Interpolator(
-      const tbox::Box& a_local_box,
-      const ProblemDomain& a_domain,
-      int a_num_x_ghosts,
-      int a_num_y_ghosts)
+      const ProblemDomain& a_domain)
    {
       m_domain_x_lo = a_domain.lower(0);
       m_domain_y_lo = a_domain.lower(1);
       m_domain_dx = a_domain.dx(0);
       m_domain_dy = a_domain.dx(1);
-      m_nx = a_local_box.upper(0) - a_local_box.lower(0) + 1;
-      m_ny = a_local_box.upper(1) - a_local_box.lower(1) + 1;
-      m_nxny = m_nx*m_ny;
-      m_num_x_ghosts = a_num_x_ghosts;
-      m_num_y_ghosts = a_num_y_ghosts;
    }
 
    // Computes the indices of the interpolating grid for an evaluation point at
@@ -214,21 +144,6 @@ protected:
 
    // The domain's grid spacing in y.
    double m_domain_dy;
-
-   // The number of ghosts in x.
-   int m_num_x_ghosts;
-
-   // The number of ghosts in y.
-   int m_num_y_ghosts;
-
-   // The number of x grid points in the local box.
-   int m_nx;
-
-   // The number of y grid points in the local box.
-   int m_ny;
-
-   // The total number of grid points in the local box.
-   int m_nxny;
 
 private:
    // Unimplemented default constructor.

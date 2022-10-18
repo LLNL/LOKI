@@ -1,48 +1,18 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _PROBLEM_DOMAIN_H_
 #define _PROBLEM_DOMAIN_H_
 
-#include "Overture.h"
-#include "OvertureTypes.h"
-#include "ParmParse.H"
-#include "HDF5_DataBase.h"
-
+#include "LokiInputParser.H"
+#include "RestartReader.H"
+#include "RestartWriter.H"
 #include "tbox/Dimension.H"
 #include "tbox/IntVector.H"
 #include "tbox/Box.H"
@@ -50,7 +20,7 @@
 
 namespace Loki {
 
-/**
+ /**
  * Description of the global Cartesian problem domain.  The problem domain will
  * be 2D for configuration space entities (Poisson & Maxwell), or 4D for phase
  * space entites (KineticSpecies).
@@ -63,11 +33,11 @@ public:
     *        This is used by the post-processor.
     *
     * @param[in] a_dim Dimension of domain.
-    * @param[in] a_db Restart database
+    * @param[in] a_reader Restart database reader.
     */
    ProblemDomain(
       const tbox::Dimension& a_dim,
-      HDF_DataBase& a_db);
+      RestartReader& a_reader);
 
    /**
     * @brief Constructor to create a ProblemDomain from an input file.
@@ -81,7 +51,7 @@ public:
    ProblemDomain(
       const tbox::Dimension& a_dim,
       int a_spatial_solution_order,
-      ParmParse& a_pp);
+      LokiInputParser& a_pp);
 
    /**
     * @brief Constructor from caller's data.
@@ -98,9 +68,9 @@ public:
    ProblemDomain(
       const tbox::Dimension& a_dim,
       const tbox::IntVector& a_n_cells,
-      const Array<double>&   a_x_lo,
-      const Array<double>&   a_x_hi,
-      const Array<bool>&     a_is_periodic);
+      const vector<double>&  a_x_lo,
+      const vector<double>&  a_x_hi,
+      const deque<bool>&     a_is_periodic);
 
    /**
     * @brief Copy constructor.
@@ -142,7 +112,7 @@ public:
    /**
     * @brief Returns the lower coordinate of all directions.
     */
-   const Array<double>&
+   const vector<double>&
    lower() const
    {
       return m_x_lo;
@@ -151,7 +121,7 @@ public:
    /**
     * @brief Returns the upper coordinate of all directions.
     */
-   const Array<double>&
+   const vector<double>&
    upper() const
    {
       return m_x_hi;
@@ -196,7 +166,7 @@ public:
    /**
     * @brief Returns the cell size in all directions.
     */
-   const Array<double>&
+   const vector<double>&
    dx() const
    {
       return m_dx;
@@ -229,7 +199,7 @@ public:
    /**
     * @brief Returns boolean describing periodicity in all directions.
     */
-   const Array<bool>&
+   const deque<bool>&
    isPeriodic() const
    {
       return m_is_periodic;
@@ -283,20 +253,22 @@ public:
    /**
     * @brief Write this class to a restart database.
     *
-    * @param[out] a_db Restart database.
+    * @param[out] a_writer Restart file writer.
+    * @param[in] a_write_data If true this processor actually writes its data.
     */
    void
    putToDatabase(
-      HDF_DataBase& a_db) const;
+      RestartWriter& a_writer,
+      bool a_write_data) const;
 
    /**
     * @brief Read global problem domain parameters from a restart database.
     *
-    * @param[in] a_db Restart database.
+    * @param[in] a_reader Restart file reader.
     */
    void
    getFromDatabase(
-      const HDF_DataBase& a_db);
+      RestartReader& a_reader);
 
 private:
    // Unimplemented default constructor.
@@ -311,7 +283,7 @@ private:
    void
    parseParameters(
       int a_spatial_solution_order,
-      ParmParse& a_pp);
+      LokiInputParser& a_pp);
 
    // Set up m_dx and m_box from input parameters.
    void
@@ -321,13 +293,13 @@ private:
    tbox::Dimension m_dim;
 
    // Lower coordinates in each direction.
-   Array<double> m_x_lo;
+   vector<double> m_x_lo;
 
    // Upper coordinates in each direction.
-   Array<double> m_x_hi;
+   vector<double> m_x_hi;
 
    // Cell size in each direction.
-   Array<double> m_dx;
+   vector<double> m_dx;
 
    // Number of cells in each direction.
    tbox::IntVector m_n_cells;
@@ -336,7 +308,7 @@ private:
    tbox::Box m_box;
 
    // True for each direction that is periodic.
-   Array<bool> m_is_periodic;
+   deque<bool> m_is_periodic;
 };
 
 /**
@@ -344,17 +316,17 @@ private:
  * fortran calls.
  */
 #define PROBLEMDOMAIN_TO_FORT(__pd) \
-   *(__pd.lower()).dataPtr(), \
-   *(__pd.upper()).dataPtr(), \
-   *(__pd.dx()).dataPtr()
+   __pd.lower()[0], \
+   __pd.upper()[0], \
+   __pd.dx()[0]
 
 /**
  * @brief Macro to define information about extent of ProblemDomain for fortran
  * calls.
  */
 #define PROBLEMDOMAIN_TO_FORT_PROTO \
-   const real& xlo, const real& xhi, const real& dx
-
+   const double& xlo, const double& xhi, const double& dx
+  
 } // end namespace Loki
 
 #endif

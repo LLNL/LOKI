@@ -1,102 +1,108 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "SimpleEMIC.H"
 #include "SimpleEMICF.H"
-#include "BoxOps.H"
+#include "Loki_Utilities.H"
 
 namespace Loki {
 
-const aString SimpleEMIC::s_CLASS_NAME("SimpleEMIC");
+const string SimpleEMIC::s_CLASS_NAME("SimpleEMIC");
 
 bool
 SimpleEMIC::isType(
-   const aString& a_name)
+   const string& a_name)
 {
-   if (a_name.matches(s_CLASS_NAME)) {
+   if (a_name.compare(s_CLASS_NAME) == 0) {
       return true;
    }
    return false;
 }
 
 SimpleEMIC::SimpleEMIC(
-   ParmParse& a_pp)
+   LokiInputParser& a_pp)
+   : m_iparameters(NUM_IPARAMS)
 {
-   // Size the double and integer parameters.
-   m_dparameters.resize(NUM_DPARAMS);
-   m_iparameters.resize(NUM_IPARAMS);
-
    // Read which field we're initializing.
-   aString tmp;
+   string tmp;
    if (!a_pp.query("field", tmp)) {
-      OV_ABORT("Must supply field");
+      LOKI_ABORT("Must supply field");
    }
-   else if (tmp.matches("E") || tmp.matches("e")) {
-      m_iparameters(FIELD) = E;
+   else if (tmp.compare("E") == 0 || tmp.compare("e") == 0) {
+      m_iparameters[FIELD] = E;
    }
-   else if (tmp.matches("B") || tmp.matches("b")) {
-      m_iparameters(FIELD) = B;
+   else if (tmp.compare("B") == 0 || tmp.compare("b") == 0) {
+      m_iparameters[FIELD] = B;
    }
    else {
-      OV_ABORT("Unknown field");
+      LOKI_ABORT("Unknown field");
    }
 
    // All this input is required as there's no obvious defaults.
-   if (!a_pp.query("xamp", m_dparameters(XAMP))) {
-      OV_ABORT("Must supply xamp");
+   int num_xamp, num_yamp, num_zamp, num_kx, num_ky, num_phi;
+   if (!a_pp.contains("xamp")) {
+      LOKI_ABORT("Must supply xamp");
    }
-   if (!a_pp.query("yamp", m_dparameters(YAMP))) {
-      OV_ABORT("Must supply yamp");
+   else {
+      num_xamp = a_pp.countval("xamp");
+      m_x_amp.resize(num_xamp);
+      a_pp.queryarr("xamp", m_x_amp, 0, num_xamp);
    }
-   if (!a_pp.query("zamp", m_dparameters(ZAMP))) {
-      OV_ABORT("Must supply zamp");
+   if (!a_pp.contains("yamp")) {
+      LOKI_ABORT("Must supply yamp");
+   }
+   else {
+      num_yamp = a_pp.countval("yamp");
+      m_y_amp.resize(num_yamp);
+      a_pp.queryarr("yamp", m_y_amp, 0, num_yamp);
+   }
+   if (!a_pp.contains("zamp")) {
+      LOKI_ABORT("Must supply zamp");
+   }
+   else {
+      num_zamp = a_pp.countval("zamp");
+      m_z_amp.resize(num_zamp);
+      a_pp.queryarr("zamp", m_z_amp, 0, num_zamp);
    }
 
-   if (!a_pp.query("x_wave_number", m_dparameters(X_WAVE_NUMBER))) {
-      OV_ABORT("Must supply x_wave_number");
+   if (!a_pp.contains("x_wave_number")) {
+      LOKI_ABORT("Must supply x_wave_number");
+   }
+   else {
+      num_kx = a_pp.countval("x_wave_number");
+      m_x_wave_number.resize(num_kx);
+      a_pp.queryarr("x_wave_number", m_x_wave_number, 0, num_kx);
    }
 
-   if (!a_pp.query("y_wave_number", m_dparameters(Y_WAVE_NUMBER))) {
-      OV_ABORT("Must supply y_wave_number");
+   if (!a_pp.contains("y_wave_number")) {
+      LOKI_ABORT("Must supply y_wave_number");
+   }
+   else {
+      num_ky = a_pp.countval("y_wave_number");
+      m_y_wave_number.resize(num_ky);
+      a_pp.queryarr("y_wave_number", m_y_wave_number, 0, num_ky);
    }
 
-   if (!a_pp.query("phase", m_dparameters(PHI))) {
-      OV_ABORT("Must supply phase");
+   if (!a_pp.contains("phase")) {
+      LOKI_ABORT("Must supply phase");
    }
+   else {
+      num_phi = a_pp.countval("phase");
+      m_phi.resize(num_phi);
+      a_pp.queryarr("phase", m_phi, 0, num_phi);
+   }
+
+   if (num_xamp != num_yamp || num_xamp != num_zamp ||
+       num_xamp != num_kx || num_xamp != num_ky || num_xamp != num_phi) {
+      LOKI_ABORT("Number of amplitude, wave numbers, and phases no not match.");
+   }
+   m_num_waves = num_xamp;
 }
 
 
@@ -107,31 +113,42 @@ SimpleEMIC::~SimpleEMIC()
 
 void
 SimpleEMIC::set(
-   RealArray& a_u,
+   ParallelArray& a_u,
    const ProblemDomain& a_domain) const
 {
    // Delegate evaluation to fortran.
-   tbox::Box local_box(BoxOps::getLocalBox(a_u));
-
-   SET_SIMPLE_EMIC(BOX2D_TO_FORT(local_box),
-      *a_u.getDataPointer(),
+   SET_SIMPLE_EMIC(BOX2D_TO_FORT(a_u.dataBox()),
+      *a_u.getData(),
       PROBLEMDOMAIN_TO_FORT(a_domain),
-      *m_dparameters.getDataPointer(),
-      *m_iparameters.getDataPointer());
+      m_num_waves,
+      m_x_amp[0],
+      m_y_amp[0],
+      m_z_amp[0],
+      m_x_wave_number[0],
+      m_y_wave_number[0],
+      m_phi[0],
+      m_iparameters[0]);
 }
 
 
 bool
 SimpleEMIC::initializesE()
 {
-   return m_iparameters(FIELD) == E;
+   return m_iparameters[FIELD] == E;
 }
 
 
 bool
 SimpleEMIC::initializesB()
 {
-   return m_iparameters(FIELD) == B;
+   return m_iparameters[FIELD] == B;
+}
+
+
+int
+SimpleEMIC::numWaves()
+{
+   return m_num_waves;
 }
 
 
@@ -139,15 +156,39 @@ void
 SimpleEMIC::printParameters() const
 {
    // Print all input parameters.
-   printF("  Using EM field initialization:\n");
-   printF("    field         = %s\n",
-      m_iparameters(FIELD) == E ? "E" : "B");
-   printF("    X amplitude   = %f\n", m_dparameters(XAMP));
-   printF("    Y amplitude   = %f\n", m_dparameters(YAMP));
-   printF("    Z amplitude   = %f\n", m_dparameters(ZAMP));
-   printF("    x wave number = %f\n", m_dparameters(X_WAVE_NUMBER));
-   printF("    y wave number = %f\n", m_dparameters(Y_WAVE_NUMBER));
-   printF("    phase         = %f\n", m_dparameters(PHI));
+   Loki_Utilities::printF("  Using EM field initialization:\n");
+   Loki_Utilities::printF("    field         = %s\n",
+      m_iparameters[FIELD] == E ? "E" : "B");
+   Loki_Utilities::printF("    X amplitude   = ");
+   for (int i = 0; i < m_num_waves; ++i ) {
+      Loki_Utilities::printF("%e ", m_x_amp[i]);
+   }
+   Loki_Utilities::printF("\n");
+   Loki_Utilities::printF("    Y amplitude   = ");
+   for (int i = 0; i < m_num_waves; ++i ) {
+      Loki_Utilities::printF("%e ", m_y_amp[i]);
+   }
+   Loki_Utilities::printF("\n");
+   Loki_Utilities::printF("    Z amplitude   = ");
+   for (int i = 0; i < m_num_waves; ++i ) {
+      Loki_Utilities::printF("%e ", m_z_amp[i]);
+   }
+   Loki_Utilities::printF("\n");
+   Loki_Utilities::printF("    x wave number = ");
+   for (int i = 0; i < m_num_waves; ++i ) {
+      Loki_Utilities::printF("%e ", m_x_wave_number[i]);
+   }
+   Loki_Utilities::printF("\n");
+   Loki_Utilities::printF("    y wave number = ");
+   for (int i = 0; i < m_num_waves; ++i ) {
+      Loki_Utilities::printF("%e ", m_y_wave_number[i]);
+   }
+   Loki_Utilities::printF("\n");
+   Loki_Utilities::printF("    phase         = ");
+   for (int i = 0; i < m_num_waves; ++i ) {
+      Loki_Utilities::printF("%e ", m_phi[i]);
+   }
+   Loki_Utilities::printF("\n");
 }
 
 } // end namespace Loki

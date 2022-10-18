@@ -1,20 +1,18 @@
-maxEnorm 1.0e-8
-intEnorm 1.0e-8
-maxEx 1.0e-8
-maxEy 1.0e-30
-intEnorm2 1.0e-8
-probeEx 4.0e-7
-probeEy 1.0e-30
-particleX 1.0e-30
-particleY 1.0e-30
-particleVx 1.0e-30
-particleVy 1.0e-30
-electron.intKE 1.0e-14
-electron.KEfluxXlo 2.0e-8
-electron.KEfluxXhi 2.0e-8
-electron.KEfluxYlo 1.0e-30
-electron.KEfluxYhi 1.0e-30
-electron.KEfluxVxlo 1.0e-8
-electron.KEfluxVxhi 1.0e-8
-electron.KEfluxVylo 1.0e-8
-electron.KEfluxVyhi 1.0e-8
+electron_ke
+1.0e-14
+electron_ke_x
+1.0e-14
+electron_ke_y
+1.0e-14
+electron_xlo_flux
+2.0e-8
+electron_xhi_flux
+2.0e-8
+electron_vxlo_flux
+1.0e-8
+electron_vxhi_flux
+1.0e-8
+electron_ke_e_dot
+1.0e-10
+electron_driver_time_envel
+1.0e-10

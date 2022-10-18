@@ -1,89 +1,41 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "SummationSchedule.H"
 
-#include "BoxOps.H"
-#include "KernelOp.H"
 #include "TimerManager.H"
 #include "Loki_Utilities.H"
-#include "ReductionOp.H"
 
 namespace Loki {
 
+const int SummationSchedule::s_TAG = 4380;
+
 SummationSchedule::SummationSchedule(
-   const RealArray& a_local_src_array,
-   const tbox::Box& a_local_interior_box,
+   const ParallelArray& a_local_src_array,
+   const ParallelArray& a_dist_func,
    const tbox::Box& a_domain_box,
-   const Range& a_processor_range,
    const MPI_Comm& a_comm)
    : m_local_src_array(a_local_src_array),
+     m_dist_func(a_dist_func),
      m_local_dst_array(a_local_src_array),
      m_is_in_proc_range(false),
-     m_this_processor_has_data(false),
-     m_comm_id(-1),
      m_summation_comm(a_comm),
-     m_summation_comm_id(-1)
+     m_summation_comm_id(-1),
+     m_need_communication_pattern(true)
 {
-   const int my_id(std::max(0, Communication_Manager::My_Process_Number));
-   m_is_in_proc_range = isInRange(my_id, a_processor_range);
-
-   // Compute the range in each dimension of the global destination array.
-   computeLocalDstIndexArray(a_local_interior_box);
-
-   // Compute the range in each dimension of the global destination array.
-   computeGlobalDstIndexArray(a_domain_box);
+   m_is_in_proc_range = isInRange(Loki_Utilities::s_my_id,
+      m_dist_func.procLo(),
+      m_dist_func.procHi());
 
    // Construct sub-communicators for each group of processors dealing with
    // the same piece of configuration space.
-   constructCommunicator(a_local_interior_box, a_domain_box, a_comm);
-
-   // Construct the list of processors that hold data to send to the 2D
-   // processor.
-   constructSetOfProcessors(a_processor_range);
-
-   // Determine if this processor holds data to send to the 2D processor.
-   const int myid(Communication_Manager::My_Process_Number);
-   for (int p(0); p < m_proc_set.getLength(0); ++p) {
-      if (m_proc_set(p) == myid) {
-         m_this_processor_has_data = true;
-         break;
-      }
-   }
+   constructCommunicator(a_local_src_array.interiorBox(), a_domain_box, a_comm);
 }
 
 
@@ -94,7 +46,7 @@ SummationSchedule::~SummationSchedule()
 
 void
 SummationSchedule::execute(
-   realArray& a_global_dst_array)
+   ParallelArray& a_global_dst_array)
 {
    TimerManager* timers(TimerManager::getManager());
    timers->startTimer("summation");
@@ -102,45 +54,35 @@ SummationSchedule::execute(
    // Sum data on phase space nodes onto the head nodes.
    m_local_dst_array = 0;
    if (m_is_in_proc_range) {
-      if (a_global_dst_array.numberOfDimensions() !=
-          m_local_src_array.numberOfDimensions()) {
-         OV_ABORT("global dst array dim and local src array dim do not match");
+      if (a_global_dst_array.dim() != m_local_src_array.dim()) {
+         LOKI_ABORT("global dst array dim and local src array dim do not match");
       }
 
-      ParallelUtility::getSums(&(*m_local_src_array.getDataPointer()),
-         &(*m_local_dst_array.getDataPointer()),
-         m_local_src_array.elementCount(),
-         ReductionOp::REDUCE_TO_HEAD_NODE,
+      Loki_Utilities::getSums(&(*m_local_src_array.getData()),
+         &(*m_local_dst_array.getData()),
+         m_local_src_array.dataBox().size(),
+         REDUCE_TO_HEAD_NODE,
          m_summation_comm);
    }
 
-   // Now copy data from the phase space head nodes to the field defined on
-   // the configuration space processor(s).
-
-   // The processors that own the global array will receive data.  See if this
-   // processor is one of them.
-   const int myid(Communication_Manager::My_Process_Number);
-   const intSerialArray& copyToProcessorSet(
-      a_global_dst_array.getPartition().getProcessorSet());
-   bool this_processor_will_receive_data(false);
-   for (int p(0); p < copyToProcessorSet.getLength(0); ++p) {
-      if (copyToProcessorSet(p) == myid) {
-         this_processor_will_receive_data = true;
-         break;
-      }
-   }
-
    // If this processor owns part of the global array or is a head node then
-   // it must be involved in the data communication.  For each processor in
-   // m_proc_set, the head nodes, transfer data in m_local_src_array defined by
-   // m_local_src_index to the location in a_global_dst_array defined by
-   // m_global_dst_index.
-   if (thisProcessorSendsOrReceivesData(this_processor_will_receive_data)) {
-      CopyArray::copyArray(m_local_dst_array,
-         m_local_dst_index.dataPtr(),
-         m_proc_set,
-         a_global_dst_array,
-         m_global_dst_index.dataPtr());
+   // it must be involved in the data communication.  For each head node,
+   // transfer data in m_local_dst_array to the corresponding part of
+   // a_global_dst_array.
+   if (m_is_in_proc_range && isHeadNode()) {
+      if (m_need_communication_pattern) {
+         computeSendTargets(a_global_dst_array);
+         m_need_communication_pattern = false;
+      }
+      sendHeadProcDataToDestProcs(a_global_dst_array);
+   }
+   else if (a_global_dst_array.procLo() <= Loki_Utilities::s_my_id &&
+            Loki_Utilities::s_my_id <= a_global_dst_array.procHi()){
+      if (m_need_communication_pattern) {
+         computeRecvTargets(a_global_dst_array);
+         m_need_communication_pattern = false;
+      }
+      destProcsRecvHeadProcData(a_global_dst_array);
    }
 
    timers->stopTimer("summation");
@@ -151,51 +93,8 @@ SummationSchedule::execute(
 
 
 void
-SummationSchedule::computeLocalDstIndexArray(
-   const tbox::Box& a_local_interior_box)
-{
-   TimerManager* timers(TimerManager::getManager());
-   timers->startTimer("summation");
-
-   // The Ranges of each dimension of the local destination are the Ranges of
-   // the local interior box.
-   const tbox::Dimension& src_dim(a_local_interior_box.getDim());
-   m_local_dst_index.resize(src_dim);
-   if (m_is_in_proc_range) {
-      for (int dir(0); dir < src_dim; ++dir) {
-         m_local_dst_index[dir] = BoxOps::range(a_local_interior_box, dir);
-      }
-   }
-   else {
-      for (int dir(0); dir < src_dim; ++dir) {
-         m_local_dst_index[dir] = Range(0, -1);
-      }
-   }
-   timers->stopTimer("summation");
-}
-
-
-void
-SummationSchedule::computeGlobalDstIndexArray(
-   const tbox::Box& a_domain_box)
-{
-   TimerManager* timers(TimerManager::getManager());
-   timers->startTimer("summation");
-
-   // The Ranges of each dimension of the global destination array are the
-   // dimensions of the domain box.
-   const tbox::Dimension& src_dim(a_domain_box.getDim());
-   m_global_dst_index.resize(src_dim);
-   for (int dir(0); dir < src_dim; ++dir) {
-      m_global_dst_index[dir] = BoxOps::range(a_domain_box, dir);
-   }
-   timers->stopTimer("summation");
-}
-
-
-void
 SummationSchedule::constructCommunicator(
-   const tbox::Box& a_local_interior_box,
+   const ParallelArray::Box& a_local_interior_box,
    const tbox::Box& a_domain_box,
    const MPI_Comm& a_comm)
 {
@@ -211,14 +110,15 @@ SummationSchedule::constructCommunicator(
       int color = a_local_interior_box.lower(0) +
          a_domain_box.numberCells(0)*a_local_interior_box.lower(1);
 
-      MPI_Comm_rank(a_comm, &m_comm_id);
+      int comm_id;
+      MPI_Comm_rank(a_comm, &comm_id);
       const int status(MPI_Comm_split(a_comm,
          color,
-         m_comm_id,
+         comm_id,
          &m_summation_comm));
       MPI_Comm_rank(m_summation_comm, &m_summation_comm_id);
       if (status != MPI_SUCCESS) {
-         OV_ABORT("Configuration space splitting of MPI communicator failed");
+         LOKI_ABORT("Configuration space splitting of MPI communicator failed");
       }
    }
    timers->stopTimer("summation");
@@ -226,41 +126,157 @@ SummationSchedule::constructCommunicator(
 
 
 void
-SummationSchedule::constructSetOfProcessors(
-   const Range& a_processor_range)
+SummationSchedule::computeSendTargets(
+   ParallelArray& a_global_dst_array)
 {
-   TimerManager* timers(TimerManager::getManager());
-   timers->startTimer("summation");
-
-   // Find all the processors that are head nodes.
-   int n(a_processor_range.length());
-   std::vector<int> is_head_node_lcl(n, 0);
-   if (m_comm_id >= 0) {
-      is_head_node_lcl[m_comm_id] = isHeadNode() ? 1 : 0;
-   }
-   std::vector<int> is_head_node(n, 0);
-   MPI_Allreduce(&(is_head_node_lcl[0]),
-      &(is_head_node[0]),
-      n,
-      MPI_INT,
-      MPI_SUM,
-      MPI_COMM_WORLD);
-
-   // Now get the processor IDs based on the communicator passed into
-   // constructCommunicator of the head nodes.
-   int count(0);
-   for (int np(0); np < a_processor_range.length(); ++np) {
-      count += is_head_node[np];
-   }
-   m_proc_set.resize(count);
-   int next(0);
-   for (int np(0); np < a_processor_range.length(); ++np) {
-      if (is_head_node[np] == 1) {
-         m_proc_set(next) = a_processor_range.getBase() + np;
-         ++next;
+   // Determine which destination targets a head node overlaps.
+   const ParallelArray::Box& src_local_box = m_local_src_array.localBox();
+   for (int i = a_global_dst_array.procLo();
+        i <= a_global_dst_array.procHi();
+        ++i) {
+      const ParallelArray::Box dst_local_box = a_global_dst_array.localBox(i);
+      if (!dst_local_box.intersect(src_local_box).empty()) {
+         m_send_targets.push_back(i);
       }
    }
-   timers->stopTimer("summation");
+}
+
+
+void
+SummationSchedule::computeRecvTargets(
+   ParallelArray& a_global_dst_array)
+{
+   // Determine which heads nodes overlap a destination target and how much
+   // data will be sent by each head node.
+   const vector<int>& src_dim_partitions = m_dist_func.getDimPartitions();
+   vector<int> src_idx_rank(m_dist_func.dim(), 0);
+   const ParallelArray::Box& dest_proc_local_box =
+      a_global_dst_array.localBox();
+   for (int i = 0; i < src_dim_partitions[0]; ++i) {
+      src_idx_rank[0] = i;
+      for (int j = 0; j < src_dim_partitions[1]; ++j) {
+         src_idx_rank[1] = j;
+         int this_head_proc = m_dist_func.getGlobalRank(src_idx_rank);
+         const ParallelArray::Box this_head_proc_local_box_unreduced =
+            m_dist_func.localBox(this_head_proc);
+         int dst_dist_dim = a_global_dst_array.distDim();
+         int dst_dim = a_global_dst_array.dim();
+         ParallelArray::Box this_head_proc_local_box(dst_dim);
+         for (int dim = 0; dim < dst_dist_dim; ++dim) {
+            this_head_proc_local_box.lower(dim) =
+               this_head_proc_local_box_unreduced.lower(dim);
+            this_head_proc_local_box.upper(dim) =
+               this_head_proc_local_box_unreduced.upper(dim);
+         }
+         for (int dim = dst_dist_dim; dim < dst_dim; ++dim) {
+            this_head_proc_local_box.lower(dim) =
+               a_global_dst_array.localBox().lower(dim);
+            this_head_proc_local_box.upper(dim) =
+               a_global_dst_array.localBox().upper(dim);
+         }
+         if (!dest_proc_local_box.intersect(this_head_proc_local_box).empty()) {
+            m_recv_targets.push_back(this_head_proc);
+            m_recv_local_boxes.push_back(this_head_proc_local_box);
+            const ParallelArray::Box this_head_proc_recv_box_unreduced =
+               m_dist_func.dataBox(this_head_proc);
+            ParallelArray::Box this_head_proc_recv_box(dst_dim);
+            for (int dim = 0; dim < dst_dist_dim; ++dim) {
+               this_head_proc_recv_box.lower(dim) =
+                  this_head_proc_recv_box_unreduced.lower(dim);
+               this_head_proc_recv_box.upper(dim) =
+                  this_head_proc_recv_box_unreduced.upper(dim);
+            }
+            for (int dim = dst_dist_dim; dim < dst_dim; ++dim) {
+               this_head_proc_recv_box.lower(dim) =
+                  a_global_dst_array.localBox().lower(dim);
+               this_head_proc_recv_box.upper(dim) =
+                  a_global_dst_array.localBox().upper(dim);
+            }
+            m_recv_boxes.push_back(this_head_proc_recv_box);
+         }
+      }
+   }
+}
+
+
+void
+SummationSchedule::sendHeadProcDataToDestProcs(
+   ParallelArray& a_global_dst_array)
+{
+   // Post sends of m_local_dst_array's data to each destination target with
+   // which a head node overlaps.
+   int num_sends = static_cast<int>(m_send_targets.size());
+   vector<MPI_Request> sendReqs(num_sends);
+   double* send_buffer = m_local_dst_array.getData();
+   int buffer_size = m_local_dst_array.dataBox().size();
+   for (int i = 0; i < num_sends; ++i) {
+      MPI_Isend(send_buffer,
+         buffer_size,
+         MPI_DOUBLE,
+         m_send_targets[i],
+         s_TAG,
+         MPI_COMM_WORLD,
+         &sendReqs[i]);
+   }
+
+   // Verify that all the sends have occurred.
+   vector<MPI_Status> sendStatus(num_sends);
+   MPI_Waitall(num_sends, &sendReqs[0], &sendStatus[0]);
+}
+
+
+void
+SummationSchedule::destProcsRecvHeadProcData(
+   ParallelArray& a_global_dst_array)
+{
+   // Issue the receives for each head node that sends data to this destination
+   // target.
+   int num_recvs = static_cast<int>(m_recv_targets.size());
+   vector<double*> receive_buffers(num_recvs);
+   vector<MPI_Request> recv_reqs(num_recvs);
+   for (int i = 0; i < num_recvs; ++i) {
+      int buffer_size = m_recv_boxes[i].size();
+      receive_buffers[i] = new double [buffer_size];
+      MPI_Irecv(receive_buffers[i],
+         buffer_size,
+         MPI_DOUBLE,
+         m_recv_targets[i],
+         s_TAG,
+         MPI_COMM_WORLD,
+         &recv_reqs[i]);
+   }
+
+   // Process receives.
+   const ParallelArray::Box& dest_proc_local_box =
+      a_global_dst_array.localBox();
+   for (int i = 0; i < num_recvs; ++i) {
+      // Find a completed receive.
+      int recv_idx;
+      MPI_Status stat;
+      MPI_Waitany(num_recvs, &recv_reqs[0], &recv_idx, &stat);
+
+      // Get the receive buffer with which this receive is associated.
+      double* this_recv_buffer = receive_buffers[recv_idx];
+      const ParallelArray::Box& this_recv_box = m_recv_boxes[recv_idx];
+      const ParallelArray::Box& this_local_box = m_recv_local_boxes[recv_idx];
+
+      // Fill a_global_dst_array with the received data.
+      int i0lo = max(dest_proc_local_box.lower(0), this_local_box.lower(0));
+      int i0hi = min(dest_proc_local_box.upper(0), this_local_box.upper(0));
+      int i1lo = max(dest_proc_local_box.lower(1), this_local_box.lower(1));
+      int i1hi = min(dest_proc_local_box.upper(1), this_local_box.upper(1));
+      int n0 = this_recv_box.numberOfCells(0);
+      int i0buff = i0lo-this_recv_box.lower(0);
+      for (int i0 = i0lo; i0 <= i0hi; ++i0) {
+         int i1buff = i1lo-this_recv_box.lower(1);
+         for (int i1 = i1lo; i1 <= i1hi; ++i1) {
+            a_global_dst_array(i0, i1) = this_recv_buffer[i1buff*n0 + i0buff];
+            ++i1buff;
+         }
+         ++i0buff;
+      }
+      delete [] this_recv_buffer;
+   }
 }
 
 } // end namespace Loki

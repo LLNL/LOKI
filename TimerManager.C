@@ -1,43 +1,15 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "TimerManager.H"
 
-#include "ParallelUtility.h"
+#include "Loki_Utilities.H"
 
 #include <numeric>
 
@@ -60,7 +32,7 @@ TimerManager::getManager()
 
 bool
 TimerManager::timerExists(
-   const std::string& a_name) const
+   const string& a_name) const
 {
    // Not especially efficient but we only do this once for each timer so
    // it's not a big deal.
@@ -81,7 +53,7 @@ TimerManager::timerExists(
 
 void
 TimerManager::createTimer(
-   const std::string& a_name)
+   const string& a_name)
 {
    if (!timerExists(a_name)) {
       Timer* T_tmp = new Timer(a_name);
@@ -96,7 +68,7 @@ TimerManager::createTimer(
 
 void
 TimerManager::startTimer(
-   const std::string& a_name)
+   const string& a_name)
 {
    // Every time we start the timer we must do a linear search for it which
    // isn't very efficient.  We do this alot but the list is hopefully small.
@@ -114,7 +86,8 @@ TimerManager::startTimer(
             m_current_timer->start();
          }
          else {
-            cout << "Warning: startTimer called for " << a_name << ", which is already running!" << endl;
+            cout << "Warning: startTimer called for " << a_name
+                 << ", which is already running!" << endl;
          }
          timer_found = true;
          break;
@@ -128,7 +101,7 @@ TimerManager::startTimer(
 
 void
 TimerManager::stopTimer(
-   const std::string& a_name)
+   const string& a_name)
 {
    // Every time we stop the timer we must do a linear search for it which
    // isn't very efficient.  We do this alot but the list is hopefully small.
@@ -159,7 +132,8 @@ TimerManager::stopTimer(
             }
          }
          else {
-            cout << "Warning: stopTimer called for " << a_name << ", which is not running!" << endl;
+            cout << "Warning: stopTimer called for " << a_name
+                 << ", which is not running!" << endl;
          }
          timer_found = true;
          break;
@@ -177,7 +151,7 @@ TimerManager::print(
    long int a_number_of_cells)
 {
    // stop all timers and record those running
-   std::vector<size_t> restart_list(0);
+   vector<size_t> restart_list(0);
    int k(0);
    for (TimerList::iterator iter(m_timers.begin());
         iter != m_timers.end();
@@ -190,27 +164,27 @@ TimerManager::print(
    }
 
    // Get the total time.
-   vector<real> net_times(m_timers.size());
+   vector<double> net_times(m_timers.size());
    int i(0);
    for (TimerList::iterator iter(m_timers.begin());
         iter != m_timers.end();
         ++iter) {
-      net_times[i] = ParallelUtility::getSum((*iter)->elapsedTime(), 0);
+      net_times[i] = Loki_Utilities::getSum((*iter)->elapsedTime(), 0);
       ++i;
    }
-   real total_time(std::accumulate(net_times.begin(), net_times.end(), 0.0));
+   double total_time(accumulate(net_times.begin(), net_times.end(), 0.0));
 
    // Write each timer's non-exclusive stats and the stats on the total time.
-   real per_cell(1.0 / static_cast<double>(a_number_of_cells));
-   real per_cell_per_step(per_cell / a_step_number);
-   real to_percent_time(100.0 / total_time);
-   printF("   Time for                  total     per cell    per(cell*timestep)    %Total\n");
+   double per_cell(1.0 / static_cast<double>(a_number_of_cells));
+   double per_cell_per_step(per_cell / a_step_number);
+   double to_percent_time(100.0 / total_time);
+   Loki_Utilities::printF("   Time for                  total     per cell    per(cell*timestep)    %Total\n");
    int j(0);
    for (TimerList::iterator iter(m_timers.begin());
         iter != m_timers.end();
         ++iter) {
-      std::string name((*iter)->name());
-      printF("      %-19s: %3.3e   %3.3e      %3.3e          %3.2f\n",
+      string name((*iter)->name());
+      Loki_Utilities::printF("      %-19s: %3.3e   %3.3e      %3.3e          %3.2f\n",
          name.c_str(),
          net_times[j],
          net_times[j] * per_cell,
@@ -218,8 +192,8 @@ TimerManager::print(
          net_times[j] * to_percent_time);
       ++j;
    }
-   printF("      ---------------------------------------------------------\n");
-   printF("      total:               %3.3e   %3.3e      %3.3e\n",
+   Loki_Utilities::printF("      ---------------------------------------------------------\n");
+   Loki_Utilities::printF("      total:               %3.3e   %3.3e      %3.3e\n",
       total_time,
       total_time * per_cell,
       total_time * per_cell_per_step);
@@ -237,7 +211,7 @@ TimerManager::print_exclusive(
    long int a_number_of_cells)
 {
    // stop all timers and record those running
-   std::vector<size_t> restart_list(0);
+   vector<size_t> restart_list(0);
    int k(0);
    for (TimerList::iterator iter(m_timers.begin());
         iter != m_timers.end();
@@ -250,27 +224,27 @@ TimerManager::print_exclusive(
    }
 
    // Get the total time.
-   vector<real> net_times(m_timers.size());
+   vector<double> net_times(m_timers.size());
    int i(0);
    for (TimerList::iterator iter(m_timers.begin());
         iter != m_timers.end();
         ++iter) {
-      net_times[i] = ParallelUtility::getSum((*iter)->exclusiveTime(), 0);
+      net_times[i] = Loki_Utilities::getSum((*iter)->exclusiveTime(), 0);
       ++i;
    }
-   real total_time(std::accumulate(net_times.begin(), net_times.end(), 0.0));
+   double total_time(accumulate(net_times.begin(), net_times.end(), 0.0));
 
    // Write each timer's exclusive stats and the stats on the total time.
-   real per_cell(1.0 / static_cast<double>(a_number_of_cells));
-   real per_cell_per_step(per_cell / a_step_number);
-   real to_percent_time(100.0 / total_time);
-   printF("   Time for                  total     per cell    per(cell*timestep)    %Total\n");
+   double per_cell(1.0 / static_cast<double>(a_number_of_cells));
+   double per_cell_per_step(per_cell / a_step_number);
+   double to_percent_time(100.0 / total_time);
+   Loki_Utilities::printF("   Time for                  total     per cell    per(cell*timestep)    %Total\n");
    int j(0);
    for (TimerList::iterator iter(m_timers.begin());
         iter != m_timers.end();
         ++iter) {
-      std::string name((*iter)->name());
-      printF("      %-19s: %3.3e   %3.3e      %3.3e          %3.2f\n",
+      string name((*iter)->name());
+      Loki_Utilities::printF("      %-19s: %3.3e   %3.3e      %3.3e          %3.2f\n",
          name.c_str(),
          net_times[j],
          net_times[j] * per_cell,
@@ -278,8 +252,8 @@ TimerManager::print_exclusive(
          net_times[j] * to_percent_time);
       ++j;
    }
-   printF("      ---------------------------------------------------------\n");
-   printF("      total:               %3.3e   %3.3e      %3.3e\n",
+   Loki_Utilities::printF("      ---------------------------------------------------------\n");
+   Loki_Utilities::printF("      total:               %3.3e   %3.3e      %3.3e\n",
       total_time,
       total_time * per_cell,
       total_time * per_cell_per_step);
@@ -311,7 +285,7 @@ TimerManager::~TimerManager()
 }
 
 TimerManager::Timer::Timer(
-   const std::string& a_name)
+   const string& a_name)
    : m_name(a_name),
      m_is_running(false),
      m_is_started(false),

@@ -1,49 +1,18 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _EXPANSION_SCHEDULE_H_
 #define _EXPANSION_SCHEDULE_H_
 
-#include "Overture.h"
-#include "ParallelUtility.h"
-
-#include "tbox/Box.H"
-
-#include <vector>
+#include "ParallelArray.H"
+#include "ProblemDomain.H"
+#include <mpi.h>
 
 namespace Loki {
 
@@ -60,18 +29,16 @@ public:
    /**
     * @brief Constructor.
     *
-    * @param[in] a_box The box representing the piece of configuration space
-    *                  associated with this object's processor.
-    * @param[in] a_number_of_species The total number of KineticSpecies.
-    * @param[in] a_config_space_id The id for the piece of configuration space
-    *                              associated with this object's processor.
-    * @param[in] a_comm Global communicator.
+    * @param[in] a_phase_space_dist A ParallelArray distributed over phase space
+    * @param[in] a_domain The problem domain for the species performing the
+    *                     expansion.
+    * @param[in] a_comm The communicator for the species performing the
+    *                   expansion.
     */
    ExpansionSchedule(
-      const tbox::Box& a_box,
-      int a_number_of_species,
-      int a_config_space_id,
-      const MPI_Comm& a_comm);
+      const ParallelArray& a_phase_space_dist,
+      const ProblemDomain& a_domain,
+      MPI_Comm a_comm);
 
    /**
     * @brief Destructor.
@@ -88,8 +55,8 @@ public:
     */
    void
    execute(
-      const realArray& a_global_config_array,
-      RealArray& a_local_phase_array);
+      const ParallelArray& a_global_config_array,
+      ParallelArray& a_local_phase_array);
 
 private:
    // Unimplemented default constructor.
@@ -104,22 +71,69 @@ private:
    operator = (
       const ExpansionSchedule& a_rhs);
 
-   // Returns true if this processor only deals with quantities defined in
-   // phase space.
-   bool isPhaseSpaceProcessor()
-   {
-      return m_is_phase_space_processor;
-   }
+   // Precomputes the phase space head processors a given configuration space
+   // processor sends data to.
+   void
+   computeHeadProcTargets(
+      const ParallelArray& a_global_config_array);
 
-   // True if this processor is a phase space processor.
-   bool m_is_phase_space_processor;
+   // Precomputes the configuration space processors a given phase space
+   // head processor receives data from.
+   void
+   computeConfigRecvTargets(
+      const ParallelArray& a_global_config_array,
+      const ParallelArray& a_local_phase_array);
 
-   // Phase space extents of each processor.
-   Array<IndexBox> m_phase_copy_to;
+   // Send data from configuration space processors to the phase space head
+   // processors.
+   void
+   sendConfigSpaceDataToHeadProcTargets(
+      const ParallelArray& a_global_config_array);
 
-   // The communicator for a phase space processor assoicated with a specific
+   // A phase space processor receives data from configuration space processors.
+   void
+   headProcsRecvConfigSpaceData(
+      const ParallelArray& a_global_config_array,
+      ParallelArray& a_local_phase_array);
+
+   // Construct the communicators for phase space processors covering the same
    // piece of configuration space.
+   void
+   constructExpansionCommunicator(
+      const ProblemDomain& a_domain,
+      MPI_Comm a_comm);
+
+   // A ParallelArray distributed over phase space. 
+   const ParallelArray& m_phase_space_dist;
+
+   // If true, the communication pattern must be precompute.
+   bool m_need_communication_pattern;
+
+   // The phase space head processors that a given configuration space processor
+   // sends data to.
+   vector<int> m_send_targets;
+
+   // The box describing the part of the data sent from a given configuration
+   // space processor to a phase space head processor.
+   vector<ParallelArray::Box> m_send_boxes;
+
+   // The configuration space processors that the a given phase space processor
+   // receives data from.
+   vector<int> m_recv_targets;
+
+   // The box describing the part of the data sent from each configuration space
+   // processor.
+   vector<ParallelArray::Box> m_recv_boxes;
+
+   // Communicator for phase space processors covering the same piece of
+   // configuration space.
    MPI_Comm m_expansion_comm;
+
+   // The processor id on m_expansion_comm.
+   int m_expansion_comm_id;
+
+   // Tag for send of configuration space data to phase space processors.
+   static const int s_TAG;
 };
 
 } // end namespace Loki

@@ -1,53 +1,19 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _LOKI_UTILITIES_H
 #define _LOKI_UTILITIES_H
 
 #include "ProblemDomain.H"
-
-/*!
- * A null use of a variable, use to avoid GNU compiler
- * warnings about unused variables.
- */
-#define NULL_USE(variable)                               \
-   do {                                                  \
-      if (0) { char* temp = (char *)&variable; temp++; } \
-   } while (0)
+#include <mpi.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 namespace Loki {
 
@@ -58,28 +24,8 @@ class Loki_Utilities
 {
 public:
    /**
-    * @brief Enforce periodicity on a_f in periodic directions.
-    *
-    * As only the configuration space directions are periodic this only operates
-    * on X1 and X2.  It's also written to deal with 2D fields with the specified
-    * number of components.
-    *
-    * @param[out] a_f Array being made periodic.
-    * @param[in] a_domain The global problem domain.
-    * @param[in] a_n_ghosts The number of ghosts in each direction.
-    * @param[in] a_depth The number of components in a_f.
-    */
-   static
-   void
-   fixPeriodicity(
-      realArray& a_f,
-      const ProblemDomain& a_domain,
-      const tbox::IntVector& a_n_ghosts,
-      int a_depth);
-
-   /**
     * @brief Turn a boolean into an int, perform a logical and reduction on it,
-    * and return the result as a boolean.
+    *        and return the result as a boolean.
     *
     * @param[in] a_bool The boolean to be reduced.
     */
@@ -87,6 +33,158 @@ public:
    bool
    reduceBoolean(
       bool a_bool);
+
+   /**
+    * @brief Sums a value over all processors in a communicator and returns
+    *        the result to the specified processor.
+    *
+    * @param[in] a_val Value from a processor to be summed.
+    * @param[in] a_processor Processor to receive result.  A value of -1
+    *                        means all processors get the result.
+    * @param[in] a_comm The communicator the summation occurs over.
+    */
+   static
+   double
+   getSum(
+      double a_val,
+      int a_processor = -1,
+      MPI_Comm a_comm = MPI_COMM_WORLD);
+
+   /**
+    * @brief Sums each entry from an array of values over all processors in a
+    *        communicator and places the results in an array on the specified
+    *        processor.
+    *
+    * @param[in] a_vals Values from a processor to be summed.
+    * @param[out] a_sums Sums for processor a_processor.  Not used on other
+    *                    processors.
+    * @param[in] a_size The size of both a_vals and a_sums.
+    * @param[in] a_processor Processor to receive result.  A value of -1
+    *                        means all processors get the result.
+    * @param[in] a_comm The communicator the summation occurs over.
+    */
+   static
+   void
+   getSums(
+      const double* a_vals,
+      double* a_sums,
+      int a_size,
+      int a_processor = -1,
+      MPI_Comm a_comm = MPI_COMM_WORLD);
+
+   /**
+    * @brief Gets the maximum of a value over all processors in a communicator
+    *        and returns the result to the specified processor.
+    *
+    * @param[in] a_val Value from a processor to be maxed.
+    * @param[in] a_processor Processor to receive result.  A value of -1
+    *                        means all processors get the result.
+    * @param[in] a_comm The communicator the operation occurs over.
+    */
+   static
+   double
+   getMaxValue(
+      double a_val,
+      int a_processor = -1,
+      MPI_Comm a_comm = MPI_COMM_WORLD);
+
+   /**
+    * @brief Gets the maximum of each entry from an array of values over all
+    *        processors in a communicator and places the results in an array on
+    *        the specified processor.
+    *
+    * @param[in] a_vals Values from a processor to be maxed.
+    * @param[out] a_maxs Maxima for processor a_processor.  Not used on other
+    *                    processors.
+    * @param[in] a_size The size of both a_vals and a_maxs.
+    * @param[in] a_processor Processor to receive result.  A value of -1
+    *                        means all processors get the result.
+    * @param[in] a_comm The communicator the operation occurs over.
+    */
+   static
+   void
+   getMaxValues(
+      const double* a_vals,
+      double* a_maxs,
+      int a_size,
+      int a_processor = -1,
+      MPI_Comm a_comm = MPI_COMM_WORLD);
+
+   /**
+    * @brief Gets the minimum of a value over all processors in a communicator
+    *        and returns the result to the specified processor.
+    *
+    * @param[in] a_val Value from a processor to be mined.
+    * @param[in] a_processor Processor to receive result.  A value of -1
+    *                        means all processors get the result.
+    * @param[in] a_comm The communicator the operation occurs over.
+    */
+   static
+   double
+   getMinValue(
+      double a_val,
+      int a_processor = -1,
+      MPI_Comm a_comm = MPI_COMM_WORLD);
+
+   /**
+    * @brief Gets the minimum of each entry from an array of values over all
+    *        processors in a communicator and places the results in an array on
+    *        the specified processor.
+    *
+    * @param[in] a_vals Values from a processor to be mined.
+    * @param[out] a_mins Minima for processor a_processor.  Not used on other
+    *                    processors.
+    * @param[in] a_size The size of both a_vals and a_mins.
+    * @param[in] a_processor Processor to receive result.  A value of -1
+    *                        means all processors get the result.
+    * @param[in] a_comm The communicator the operation occurs over.
+    */
+   static
+   void
+   getMinValues(
+      const double* a_vals,
+      double* a_mins,
+      int a_size,
+      int a_processor = -1,
+      MPI_Comm a_comm = MPI_COMM_WORLD);
+
+   // Global processor ID.
+   static int s_my_id;
+
+   // Global number of processors.
+   static int s_num_procs;
+
+   /**
+    * @brief Sets the values of s_my_id and s_num_procs.
+    */
+   static
+   void
+   initialize()
+   {
+      MPI_Comm_rank(MPI_COMM_WORLD, &s_my_id);
+      MPI_Comm_size(MPI_COMM_WORLD, &s_num_procs);
+   }
+
+   /**
+    * @brief Prints a message only on process 0.  Essentially printf on
+    *        process 0.
+    *
+    * @param[in] a_format A printf output format.
+    */
+   static
+   void
+   printF(
+     const char* a_format,
+      ...)
+   {
+      if (s_my_id >0) {
+         return;
+      }
+      va_list args;
+      va_start(args, a_format);
+      vprintf(a_format, args);
+      va_end(args);
+   }
 
 private:
    // Unimplemented default constructor.

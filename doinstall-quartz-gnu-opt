@@ -1,0 +1,7 @@
+./configure --with-CXX=/usr/tce/packages/mvapich2/mvapich2-2.3.6-gcc-4.9.3/bin/mpicxx \
+--with-CC=/usr/tce/packages/mvapich2/mvapich2-2.3.6-gcc-4.9.3/bin/mpicc \
+--with-F77=/usr/tce/packages/mvapich2/mvapich2-2.3.6-gcc-4.9.3/bin/mpif77 \
+--with-packages=/usr/gapps/valhalla/LOKI/PACKAGES_TOSS3_MVAPICH2-2.3.6 \
+--enable-debug=no --enable-opt=yes
+
+#make

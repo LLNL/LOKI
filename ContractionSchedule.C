@@ -1,93 +1,44 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "ContractionSchedule.H"
-
-#include "BoxOps.H"
-#include "KernelOp.H"
-#include "TimerManager.H"
 #include "Loki_Utilities.H"
+#include "TimerManager.H"
 
 namespace Loki {
 
+const int ContractionSchedule::s_TAG = 4383;
+
 ContractionSchedule::ContractionSchedule(
-   const RealArray& a_local_src_array,
-   const tbox::Box& a_local_interior_box,
-   const tbox::Box& a_global_box,
-   const ProblemDomain& a_domain,
-   const Range& a_processor_range,
+   const ParallelArray& a_global_array,
+   const ParallelArray& a_local_src_array,
+   const tbox::Box& a_domain_box,
    const MPI_Comm& a_comm)
-   : m_local_src_array(a_local_src_array),
-     m_local_interior_box(a_local_interior_box),
-     m_global_box(a_global_box),
-     m_domain_box(a_domain.box()),
+   : m_global_array(a_global_array),
+     m_local_src_array(a_local_src_array),
      m_is_in_proc_range(false),
-     m_this_processor_has_data(false),
-     m_comm(a_comm),
-     m_comm_id(-1),
-     m_2D_comm_id(-1)
+     m_2D_comm_id(-1),
+     m_need_communication_pattern(true)
 {
-   const int my_id(std::max(0, Communication_Manager::My_Process_Number));
-   m_is_in_proc_range = isInRange(my_id, a_processor_range);
+   if (m_local_src_array.dim() != 2 && m_local_src_array.dim() != 3) {
+      LOKI_ABORT("Attemping to use ContractionSchedule on arrays that are not 2D or 3D");
+   }
 
-   // Compute the range in each dimension of the local source array.
-   computeLocalSrcIndexArray();
+   m_is_in_proc_range = m_global_array.procLo() <= Loki_Utilities::s_my_id &&
+      Loki_Utilities::s_my_id <= m_global_array.procHi();
 
-   // Compute the range in each dimension of the global destination array.
-   computeGlobalDstIndexArray();
-
-   // Construct communicators for the 4D processors that deal with the same
+   // Construct communicator for the 4D processors that deal with the same
    // piece of configuration space.  We don't need the communicators per se but
    // we need to know which processor on each communicator is the "head node",
-   // the one processor with rank 0 on each communicator.
-   constructCommunicator();
-
-   // Construct the list of processors that hold data to send to the 2D
-   // processor.
-   constructSetOfProcessors(a_processor_range);
-
-   // Determine if this processor holds data to send to the 2D processor.
-   const int myid(Communication_Manager::My_Process_Number);
-   for (int p(0); p < m_proc_set.getLength(0); ++p) {
-      if (m_proc_set(p) == myid) {
-         m_this_processor_has_data = true;
-         break;
-      }
-   }
+   // the one processor with rank 0 on each communicator.  These are the
+   // processors that send data.
+   constructCommunicator(m_global_array.interiorBox(), a_domain_box, a_comm);
 }
 
 
@@ -98,38 +49,35 @@ ContractionSchedule::~ContractionSchedule()
 
 void
 ContractionSchedule::execute(
-   realArray& a_global_dst_array)
+   ParallelArray& a_global_dst_array)
 {
+   if (m_local_src_array.dim() != a_global_dst_array.dim()) {
+      LOKI_ABORT("Source and destination arrays have different dimensions.");
+   }
+
    TimerManager* timers(TimerManager::getManager());
    timers->startTimer("contraction");
 
-   // take the local_dst_array on the head nodes and form a global dst array
-   // across these head nodes
-
-   // The processors that own the global array will receive data.  See if this
-   // processor is one of them.
-   const int myid(Communication_Manager::My_Process_Number);
-   const intSerialArray& copyToProcessorSet(
-      a_global_dst_array.getPartition().getProcessorSet());
-   bool this_processor_will_receive_data(false);
-   for (int p(0); p < copyToProcessorSet.getLength(0); ++p) {
-      if (copyToProcessorSet(p) == myid) {
-         this_processor_will_receive_data = true;
-         break;
+   // If this processor is a configuration space head processor then it sends
+   // its part of m_local_src_array to the configuration space processors.  The
+   // configuration space processors receive this data and put it in
+   // a_global_dst_array.
+   int config_proc_lo = a_global_dst_array.procLo();
+   int config_proc_hi = a_global_dst_array.procHi();
+   if (m_is_in_proc_range && isHeadNode()) {
+      if (m_need_communication_pattern) {
+         computeSendTargets(a_global_dst_array);
+         m_need_communication_pattern = false;
       }
+      sendPhaseSpaceDataToConfigSpaceProcs(config_proc_lo, config_proc_hi);
    }
-
-   // If this processor owns part of the global array or is a head node then
-   // it must be involved in the data communication.  For each processor in
-   // m_proc_set, the head nodes, transfer data in m_local_src_array defined by
-   // m_local_src_index to the location in a_global_dst_array defined by
-   // m_global_dst_index.
-   if (thisProcessorSendsOrReceivesData(this_processor_will_receive_data)) {
-      CopyArray::copyArray(m_local_src_array,
-         m_local_src_index.dataPtr(),
-         m_proc_set,
-         a_global_dst_array,
-         m_global_dst_index.dataPtr());
+   else if (config_proc_lo <= Loki_Utilities::s_my_id &&
+            Loki_Utilities::s_my_id <= config_proc_hi) {
+      if (m_need_communication_pattern) {
+         computeRecvTargets(a_global_dst_array);
+         m_need_communication_pattern = false;
+      }
+      configSpaceRecvPhaseSpaceData(a_global_dst_array);
    }
 
    timers->stopTimer("contraction");
@@ -140,48 +88,10 @@ ContractionSchedule::execute(
 
 
 void
-ContractionSchedule::computeLocalSrcIndexArray()
-{
-   TimerManager* timers(TimerManager::getManager());
-   timers->startTimer("contraction");
-
-   // The range of the local source array communicated by the processors that
-   // are involved in this contraction is determined by the local box.  The
-   // other processors have no range of data to communicate.
-   const tbox::Dimension& src_dim(m_local_interior_box.getDim());
-   m_local_src_index.resize(src_dim);
-   if (m_is_in_proc_range) {
-      for (int dir(0); dir < src_dim; ++dir) {
-         m_local_src_index[dir] = BoxOps::range(m_local_interior_box, dir);
-      }
-   }
-   else {
-      for (int dir(0); dir < src_dim; ++dir) {
-         m_local_src_index[dir] = Range(0, -1);
-      }
-   }
-   timers->stopTimer("contraction");
-}
-
-
-void
-ContractionSchedule::computeGlobalDstIndexArray()
-{
-   TimerManager* timers(TimerManager::getManager());
-   timers->startTimer("contraction");
-
-   // The range of the global destination array is determined by the domain box.
-   const tbox::Dimension& dst_dim(m_global_box.getDim());
-   m_global_dst_index.resize(dst_dim);
-   for (int dir(0); dir < dst_dim; ++dir) {
-      m_global_dst_index[dir] = BoxOps::range(m_global_box, dir);
-   }
-   timers->stopTimer("contraction");
-}
-
-
-void
-ContractionSchedule::constructCommunicator()
+ContractionSchedule::constructCommunicator(
+   const ParallelArray::Box& a_global_interior_box,
+   const tbox::Box& a_domain_box,
+   const MPI_Comm& a_comm)
 {
    TimerManager* timers(TimerManager::getManager());
    timers->startTimer("contraction");
@@ -193,58 +103,206 @@ ContractionSchedule::constructCommunicator()
    // the global array.
    int color(-1);
    if (m_is_in_proc_range) {
-      color = m_local_interior_box.lower(1)*m_domain_box.numberCells(0) +
-              m_local_interior_box.lower(0);
-      MPI_Comm_rank(m_comm, &m_comm_id);
+      color = a_global_interior_box.lower(1)*a_domain_box.numberCells(0) +
+              a_global_interior_box.lower(0);
+      int comm_id;
+      MPI_Comm_rank(a_comm, &comm_id);
       MPI_Comm config_space_comm;
-      const int status(MPI_Comm_split(m_comm,
+      const int status(MPI_Comm_split(a_comm,
          color,
-         m_comm_id,
+         comm_id,
          &config_space_comm));
-      MPI_Comm_rank(config_space_comm, &m_2D_comm_id);
       if (status != MPI_SUCCESS) {
-         OV_ABORT("Configuration space splitting of MPI communicator failed");
+         LOKI_ABORT("Configuration space splitting of MPI communicator failed");
       }
+      MPI_Comm_rank(config_space_comm, &m_2D_comm_id);
    }
    timers->stopTimer("contraction");
 }
 
 
 void
-ContractionSchedule::constructSetOfProcessors(
-   const Range& a_processor_range)
+ContractionSchedule::computeSendTargets(
+   ParallelArray& a_global_dst_array)
 {
-   TimerManager* timers(TimerManager::getManager());
-   timers->startTimer("contraction");
-
-   // Find all the processors that are head nodes.
-   int n(a_processor_range.length());
-   std::vector<int> is_head_node_lcl(n, 0);
-   if (m_comm_id >= 0) {
-      is_head_node_lcl[m_comm_id] = isHeadNode() ? 1 : 0;
-   }
-   std::vector<int> is_head_node(n, 0);
-   MPI_Allreduce(&(is_head_node_lcl[0]),
-      &(is_head_node[0]),
-      n,
-      MPI_INT,
-      MPI_SUM,
-      MPI_COMM_WORLD);
-
-   // Now get the processor ids based on m_comm of each of the head nodes.
-   int count(0);
-   for (int np(0); np < a_processor_range.length(); ++np) {
-      count += is_head_node[np];
-   }
-   m_proc_set.resize(count);
-   int next(0);
-   for (int np(0); np < a_processor_range.length(); ++np) {
-      if (is_head_node[np] == 1) {
-         m_proc_set(next) = a_processor_range.getBase() + np;
-         ++next;
+   // Determine which destination targets a head node overlaps.
+   const ParallelArray::Box& src_local_box = m_local_src_array.localBox();
+   for (int i = a_global_dst_array.procLo();
+        i <= a_global_dst_array.procHi();
+        ++i) {
+      const ParallelArray::Box dst_local_box = a_global_dst_array.localBox(i);
+      if (!dst_local_box.intersect(src_local_box).empty()) {
+         m_send_targets.push_back(i);
       }
    }
-   timers->stopTimer("contraction");
+}
+
+
+void
+ContractionSchedule::computeRecvTargets(
+   ParallelArray& a_global_dst_array)
+{
+   // Determine which heads nodes overlap a destination target and how much
+   // data will be sent by each head node. 
+   const vector<int>& src_dim_partitions = m_global_array.getDimPartitions();
+   vector<int> src_idx_rank(m_global_array.dim(), 0);
+   const ParallelArray::Box& dest_proc_local_box =
+      a_global_dst_array.localBox();
+   for (int i = 0; i < src_dim_partitions[0]; ++i) {
+      src_idx_rank[0] = i;
+      for (int j = 0; j < src_dim_partitions[1]; ++j) {
+         src_idx_rank[1] = j;
+         int this_head_proc = m_global_array.getGlobalRank(src_idx_rank);
+         const ParallelArray::Box this_head_proc_local_box_unreduced =
+            m_global_array.localBox(this_head_proc);
+         int dst_dist_dim = a_global_dst_array.distDim();
+         int dst_dim = a_global_dst_array.dim();
+         ParallelArray::Box this_head_proc_local_box(dst_dim);
+         for (int dim = 0; dim < dst_dist_dim; ++dim) {
+            this_head_proc_local_box.lower(dim) =
+               this_head_proc_local_box_unreduced.lower(dim);
+            this_head_proc_local_box.upper(dim) =
+               this_head_proc_local_box_unreduced.upper(dim);
+         }
+         for (int dim = dst_dist_dim; dim < dst_dim; ++dim) {
+            this_head_proc_local_box.lower(dim) =
+               a_global_dst_array.localBox().lower(dim);
+            this_head_proc_local_box.upper(dim) =
+               a_global_dst_array.localBox().upper(dim);
+         }
+         if (!dest_proc_local_box.intersect(this_head_proc_local_box).empty()) {
+            m_recv_targets.push_back(this_head_proc);
+            m_recv_local_boxes.push_back(this_head_proc_local_box);
+            const ParallelArray::Box this_head_proc_recv_box_unreduced =
+               m_global_array.dataBox(this_head_proc);
+            ParallelArray::Box this_head_proc_recv_box(dst_dim);
+            for (int dim = 0; dim < dst_dist_dim; ++dim) {
+               this_head_proc_recv_box.lower(dim) =
+                  this_head_proc_recv_box_unreduced.lower(dim);
+               this_head_proc_recv_box.upper(dim) =
+                  this_head_proc_recv_box_unreduced.upper(dim);
+            }
+            for (int dim = dst_dist_dim; dim < dst_dim; ++dim) {
+               this_head_proc_recv_box.lower(dim) =
+                  a_global_dst_array.localBox().lower(dim);
+               this_head_proc_recv_box.upper(dim) =
+                  a_global_dst_array.localBox().upper(dim);
+            }
+            m_recv_boxes.push_back(this_head_proc_recv_box);
+         }
+      }
+   }
+}
+
+
+void
+ContractionSchedule::sendPhaseSpaceDataToConfigSpaceProcs(
+   int a_config_proc_lo,
+   int a_config_proc_hi)
+{
+   // Post sends of m_local_src_array's data to each destination target with
+   // which a head node overlaps.
+   int num_sends = static_cast<int>(m_send_targets.size());
+   vector<MPI_Request> send_reqs(num_sends);
+   const double* send_buffer = m_local_src_array.getData();
+   int buffer_size = m_local_src_array.dataBox().size();
+   for (int i = 0; i < num_sends; ++i) {
+      MPI_Isend(send_buffer,
+         buffer_size,
+         MPI_DOUBLE,
+         m_send_targets[i],
+         s_TAG,
+         MPI_COMM_WORLD,
+         &send_reqs[i]);
+   }
+
+   // Verify that all the sends have occurred.
+   vector<MPI_Status> send_status(num_sends);
+   MPI_Waitall(num_sends, &send_reqs[0], &send_status[0]);
+}
+
+
+void
+ContractionSchedule::configSpaceRecvPhaseSpaceData(
+   ParallelArray& a_global_dst_array)
+{
+   // Issue the receives for each head node that sends data to this destination
+   // target.
+   int num_recvs = static_cast<int>(m_recv_targets.size());
+   vector<double*> receive_buffers(num_recvs);
+   vector<MPI_Request> recv_reqs(num_recvs);
+   for (int i = 0; i < num_recvs; ++i) {
+      int buffer_size = m_recv_boxes[i].size();
+      receive_buffers[i] = new double [buffer_size];
+      MPI_Irecv(receive_buffers[i],
+         buffer_size,
+         MPI_DOUBLE,
+         m_recv_targets[i],
+         s_TAG,
+         MPI_COMM_WORLD,
+         &recv_reqs[i]);
+   }
+
+   // Process receives.
+   const ParallelArray::Box& dest_proc_local_box =
+      a_global_dst_array.localBox();
+   for (int i = 0; i < num_recvs; ++i) {
+      // Find a completed receive.
+      int recv_idx;
+      MPI_Status stat;
+      MPI_Waitany(num_recvs, &recv_reqs[0], &recv_idx, &stat);
+   
+      // Get the receive bufffer with which the receive is associated.
+      double* this_recv_buffer = receive_buffers[recv_idx];
+      ParallelArray::Box& this_recv_box = m_recv_boxes[recv_idx];
+      const ParallelArray::Box& this_local_box = m_recv_local_boxes[recv_idx];
+   
+      // Fill a_global_dst_array with the received data.
+      if (this_recv_box.dim() == 2) {
+         int i0lo = max(dest_proc_local_box.lower(0), this_local_box.lower(0));
+         int i0hi = min(dest_proc_local_box.upper(0), this_local_box.upper(0));
+         int i1lo = max(dest_proc_local_box.lower(1), this_local_box.lower(1));
+         int i1hi = min(dest_proc_local_box.upper(1), this_local_box.upper(1));
+         int n0 = this_recv_box.numberOfCells(0);
+         int i0buff = i0lo-this_recv_box.lower(0);
+         for (int i0 = i0lo; i0 <= i0hi; ++i0) {
+            int i1buff = i1lo-this_recv_box.lower(1);
+            for (int i1 = i1lo; i1 <= i1hi; ++i1) {
+               a_global_dst_array(i0, i1) =
+                  this_recv_buffer[i1buff*n0 + i0buff];
+               ++i1buff;
+            }
+            ++i0buff;
+         }
+      }
+      else {
+         int i0lo = max(dest_proc_local_box.lower(0), this_local_box.lower(0));
+         int i0hi = min(dest_proc_local_box.upper(0), this_local_box.upper(0));
+         int i1lo = max(dest_proc_local_box.lower(1), this_local_box.lower(1));
+         int i1hi = min(dest_proc_local_box.upper(1), this_local_box.upper(1));
+         int i2lo = max(dest_proc_local_box.lower(2), this_local_box.lower(2));
+         int i2hi = min(dest_proc_local_box.upper(2), this_local_box.upper(2));
+         int n0 = this_recv_box.numberOfCells(0);
+         int n1 = this_recv_box.numberOfCells(1);
+         int i0buff = i0lo-this_recv_box.lower(0);
+         for (int i0 = i0lo; i0 <= i0hi; ++i0) {
+            int i1buff = i1lo-this_recv_box.lower(1);
+            for (int i1 = i1lo; i1 <= i1hi; ++i1) {
+               int i2buff = i2lo-this_recv_box.lower(2);
+               for (int i2 = i2lo; i2 <= i2hi; ++i2) {
+                  a_global_dst_array(i0, i1, i2) =
+                     this_recv_buffer[i2buff*n0*n1 + i1buff*n0 + i0buff];
+                  ++i2buff;
+               }
+               ++i1buff;
+            }
+            ++i0buff;
+         }
+      }
+
+      // Delete the receive buffer.
+      delete [] this_recv_buffer;
+   }
 }
 
 } // end namespace Loki

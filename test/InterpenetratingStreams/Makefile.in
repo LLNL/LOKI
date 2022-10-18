@@ -1,0 +1,27 @@
+#########################################################################
+##
+## Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+## See the top-level LICENSE file for details.
+## Produced at the Lawrence Livermore National Laboratory
+##
+## SPDX-License-Identifier: MIT
+##
+## Makefile for running Loki InterpenetratingStreams test.
+##
+#########################################################################
+CHECKTESTS = ../../checkTests
+BASELINES = /usr/gapps/valhalla/LOKI/BASELINES/InterpenetratingStreams
+
+default: check
+
+check:
+	srun -p pdebug -n 25 ../../vlasovPoisson4D InterpenetratingStreams.pp >& log.run
+	../../vp4DPostProcess -prefix=InterpenetratingStreams >& log.pp
+	@-$(CHECKTESTS) input >& diffs
+	@if [ -s diffs ]; then echo "FAILED"; else echo "PASSED"; fi
+
+checkclean:
+	rm -rf InterpenetratingStreams InterpenetratingStreams.pp.processed *hdf* log.* diffs *core*
+
+clean:
+	rm -rf InterpenetratingStreams InterpenetratingStreams.pp.processed *hdf* log.* diffs *core*

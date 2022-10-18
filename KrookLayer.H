@@ -1,48 +1,18 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _KROOK_LAYER_H_
 #define _KROOK_LAYER_H_
 
-#include "Overture.h"
-#include "OvertureTypes.h"
-#include "ParmParse.H"
-#include "HDF5_DataBase.h"
-
+#include "LokiInputParser.H"
+#include "RestartReader.H"
+#include "RestartWriter.H"
 #include "ProblemDomain.H"
 #include "Directions.H"
 #include "tbox/Dimension.H"
@@ -65,13 +35,25 @@ public:
     */
    KrookLayer(
       const tbox::Dimension& a_dim,
-      ParmParse& a_pp,
+      LokiInputParser& a_pp,
       const ProblemDomain& a_domain);
 
    /**
     * @brief Destructor.
     */
    ~KrookLayer();
+
+   /**
+    * @brief Compute the damping coefficient nu for each point of the
+    *        distribution function which overlaps the layer.
+    *
+    * @param[in] a_dist_func The partitioned distribution function.
+    * @param[in] a_spatial_order The problem's spatial order.
+    */
+   void
+   initialize(
+      const ParallelArray& a_dist_func,
+      int a_spatial_order);
 
    /**
     * @brief Returns true if a Krook layer in any direction has been defined.
@@ -84,7 +66,7 @@ public:
 
    /**
     * @brief Returns true if a Krook layer on the specified side of the
-    * specified direction has been defined.
+    *        specified direction has been defined.
     *
     * @param[in] a_dir Direction of interest.
     * @param[in] a_side Side of interest.
@@ -102,12 +84,21 @@ public:
 
    /**
     * @brief Returns 1 if a Krook layer in any direction has been defined, 0
-    * otherwise.
+    *        otherwise.
     */
    int
    hasKrookLayerAsInteger() const
    {
       return ((m_has_layer) ? 1 : 0);
+   }
+
+   /**
+    * @brief Returns true if the Krook layer overlaps this processor's extent.
+    */
+   bool
+   overlaps() const
+   {
+      return m_overlaps;
    }
 
    /**
@@ -119,25 +110,27 @@ public:
    /**
     * @brief Write information about Krook layers to restart database.
     *
-    * @param[out] a_db Restart database.
+    * @param[out] a_writer Restart file writer.
+    * @param[in] a_write_data If true this processor actually writes its data.
     */
    void
    putToDatabase(
-      HDF_DataBase& a_db) const;
+      RestartWriter& a_writer,
+      bool a_write_data) const;
 
    /**
     * @brief Read information about Krook layers to restart database.
     *
-    * @param[in] a_db Restart database.
+    * @param[in] a_reader Restart file reader.
     */
    void
    getFromDatabase(
-      const HDF_DataBase& a_db);
+      RestartReader& a_reader);
 
    /**
     * @brief Returns the coordinates of the lower end of each Krook layer.
     */
-   const Array<double>&
+   const vector<double>&
    lower() const
    {
       return m_x_lo;
@@ -146,7 +139,7 @@ public:
    /**
     * @brief Returns the coordinates of the upper end of each Krook layer.
     */
-   const Array<double>&
+   const vector<double>&
    upper() const
    {
       return m_x_hi;
@@ -154,7 +147,7 @@ public:
 
    /**
     * @brief Returns the coordinates of the lower end of the Krook layer in the
-    * requested direction.
+    *        requested direction.
     *
     * @param[in] a_dir Direction of interest.
     */
@@ -167,7 +160,7 @@ public:
 
    /**
     * @brief Returns the coordinates of the upper end of the Krook layer in the
-    * requested direction.
+    *        requested direction.
     *
     * @param[in] a_dir Direction of interest.
     */
@@ -179,21 +172,12 @@ public:
    }
 
    /**
-    * @brief Returns the exponent in the evaluation of each Krook layer.
+    * @brief Returns the damping coefficient.
     */
-   double
-   power() const
+   const ParallelArray&
+   nu() const
    {
-      return m_power;
-   }
-
-   /**
-    * @brief Returns the overall scaling in the evaluation of each Krook layer.
-    */
-   double
-   coefficient() const
-   {
-      return m_coefficient;
+      return m_nu;
    }
 
 private:
@@ -212,38 +196,46 @@ private:
    // Parse this class' parameters.
    void
    parseParameters(
-      ParmParse& a_pp);
+      LokiInputParser& a_pp);
 
    // Check the validity of this class' parameters.
    void
-   checkParameters(
-      const ProblemDomain& a_domain);
+   checkParameters();
 
    // Configuration space dimensions of the problem.
    tbox::Dimension m_dim;
 
    // Coordinates of the lower end of each Krook layer.
-   Array<double> m_x_lo;
+   vector<double> m_x_lo;
 
    // Coordinates of the upper end of each Krook layer.
-   Array<double> m_x_hi;
+   vector<double> m_x_hi;
 
    // For each dimension, is true if there is a Krook layer on the lower side
    // of that dimension.
-   Array<bool> m_has_layer_lo;
+   deque<bool> m_has_layer_lo;
 
    // For each dimension, is true if there is a Krook layer on the upper side
    // of that dimension.
-   Array<bool> m_has_layer_hi;
+   deque<bool> m_has_layer_hi;
 
    // Is true if a Krook layer in any direction has been defined.
    bool m_has_layer;
 
+   // If true the Krook layer overlaps this processor's extent.
+   bool m_overlaps;
+
    // The exponent in the evaluation of each Krook layer.
-   real m_power;
+   double m_power;
 
    // The overall scaling in the evaluation of each Krook layer.
-   real m_coefficient;
+   double m_coefficient;
+
+   // The problem domain.
+   ProblemDomain m_domain;
+
+   // The damping coefficient.
+   ParallelArray m_nu;
 };
 
 } // end namespace Loki

@@ -1,136 +1,31 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "ExpansionSchedule.H"
 #include "Directions.H"
+#include "Loki_Utilities.H"
+#include "TimerManager.H"
 
 namespace Loki {
 
+const int ExpansionSchedule::s_TAG = 4382;
+
 ExpansionSchedule::ExpansionSchedule(
-   const tbox::Box& a_box,
-   int a_number_of_species,
-   int a_config_space_id,
-   const MPI_Comm& a_comm) :
-     m_is_phase_space_processor(false),
-     m_phase_copy_to(Communication_Manager::numberOfProcessors()),
-     m_expansion_comm(a_comm)
+   const ParallelArray& a_phase_space_dist,
+   const ProblemDomain& a_domain,
+   MPI_Comm a_comm)
+   : m_phase_space_dist(a_phase_space_dist),
+     m_need_communication_pattern(true)
 {
-   // Get the phase space extents of each processor.,
-   int my_id = Communication_Manager::My_Process_Number;
-   const int n_procs(Communication_Manager::numberOfProcessors());
-   int buf[2*CDIM+2];
-   for (int i = 0; i < n_procs; ++i) {
-      if (my_id == i) {
-         for (int j = 0; j < (CDIM+1); ++j) {
-            buf[2*j] = a_box.lower(j);
-            buf[2*j+1] = a_box.upper(j);
-         }
-      }
-      MPI_Bcast(buf, 2*CDIM+2, MPI_INT, i, MPI_COMM_WORLD);
-      m_phase_copy_to[i].processor = i;
-      m_phase_copy_to[i].setBounds(buf[0],
-         buf[1],
-         buf[2],
-         buf[3],
-         buf[4],
-         buf[5]);
-   }
-
-   // Determine if this processor deals with phase space.
-   if (!m_phase_copy_to[my_id].isEmpty()) {
-      m_is_phase_space_processor = true;
-   }
-
-   // Only allow the phase space head processors to have extents defining the
-   // range of data copied to them as the first step of the communication is
-   // from configuration space processors to the phase space head processors.
-   // If each species is distributed on only 1 processor then this step is not
-   // necessary as there is only 1 phase space processor and by definition it is
-   // the head processor.  Note that there is an implicit assumption that there
-   // is only 1 Maxwell or Poisson processor.
-   if (n_procs > 1+a_number_of_species) {
-      for (int i = 0; i < n_procs;) {
-         if (m_phase_copy_to[i].isEmpty()) {
-            ++i;
-         }
-         else {
-            const IndexBox& head_index_box = m_phase_copy_to[i];
-            for (int j = i+1; j < n_procs; ++j) {
-               IndexBox& other_index_box = m_phase_copy_to[j];
-               bool is_foot_proc = true;
-               for (int k = 0; k < CDIM; ++k) {
-                  if (head_index_box.base(k) != other_index_box.base(k) ||
-                      head_index_box.bound(k) != other_index_box.bound(k)) {
-                     is_foot_proc = false;
-                     break;
-                  }
-               }
-               if (is_foot_proc) {
-                  other_index_box.setBounds(0, -1, 0, -1, 0, -1);
-                  if (j == n_procs - 1) {
-                     i = n_procs;
-                  }
-               }
-               else {
-                  if (j == n_procs - 1) {
-                     i = n_procs;
-                  }
-                  else {
-                     i = j;
-                  }
-                  break;
-               }
-            }
-         }
-      }
-   }
-
-   // Now create a sub-communicator for each set of phase space processors that
-   // deal with the same piece of configuration space.
-   if (m_is_phase_space_processor) {
-      int comm_id;
-      MPI_Comm_rank(a_comm, &comm_id);
-      const int status = MPI_Comm_split(a_comm,
-         a_config_space_id,
-         comm_id,
-         &m_expansion_comm);
-      if (status != MPI_SUCCESS) {
-         OV_ABORT("Configuration space splitting of MPI communicator failed");
-      }
+   if (m_phase_space_dist.procLo() <= Loki_Utilities::s_my_id &&
+       Loki_Utilities::s_my_id <= m_phase_space_dist.procHi()) {
+      constructExpansionCommunicator(a_domain, a_comm);
    }
 }
 
@@ -142,35 +37,252 @@ ExpansionSchedule::~ExpansionSchedule()
 
 void
 ExpansionSchedule::execute(
-   const realArray& a_global_config_array,
-   RealArray& a_local_phase_array)
+   const ParallelArray& a_global_config_array,
+   ParallelArray& a_local_phase_array)
 {
-   // Communicate a_global_config_array which is defined on configuration space
-   // processors to a_local_phase_array on the phase space head processors.
-   // Then each head processor broadcasts a_local_phase_array to the other
-   // phase space processors that deal with that same piece of configuration
-   // space.
-
-   // The source range is defined by a_global_config_array.
-   Index src_index[PDIM];
-   for (int d(0); d < CDIM+1; ++d) {
-      int na = min(a_global_config_array.getBase(d), 0);
-      int nb = max(a_global_config_array.getBound(d), 0);
-      src_index[d] = Range(na, nb);
+   if (a_global_config_array.dim() != a_local_phase_array.dim()) {
+      LOKI_ABORT("Source and destination arrays have different dimensions.");
    }
-   src_index[3] = Range(0, 0);
-
-   // Do the communication
-   CopyArray::copyArray(a_global_config_array,
-      src_index,
-      m_phase_copy_to.dataPtr(),
-      a_local_phase_array);
-
-   // Each phase space head node communicates its a_local_phase_array to
-   // a_local_phase_array from one of its related phase space processors.
-   if (isPhaseSpaceProcessor()) {
-      broadCast(a_local_phase_array, 0, m_expansion_comm);
+   if (a_global_config_array.dim() != 2 && a_global_config_array.dim() != 3) {
+      LOKI_ABORT("Attemping to use ExpansionSchedule on arrays that are not 2D or 3D");
    }
+
+   // If this processor owns part of the global configuration space array or is
+   // a phase space processor it must be involved in the data communication.
+   // Transfer the data in a_global_config_array to the corresponding part of
+   // a_local_phase_array.
+   TimerManager* timers(TimerManager::getManager());
+   timers->startTimer("phys to phase");
+
+   // The processors owning the global configuration space array send data to
+   // the head processors owning the local phase space arrays.
+   if (a_global_config_array.procLo() <= Loki_Utilities::s_my_id &&
+       Loki_Utilities::s_my_id <= a_global_config_array.procHi()) {
+      if (m_need_communication_pattern) {
+         computeHeadProcTargets(a_global_config_array);
+         m_need_communication_pattern = false;
+      }
+      sendConfigSpaceDataToHeadProcTargets(a_global_config_array);
+   }
+   else if (m_phase_space_dist.procLo() <= Loki_Utilities::s_my_id &&
+            Loki_Utilities::s_my_id <= m_phase_space_dist.procHi()) {
+      if (m_expansion_comm_id == 0) {
+         if (m_need_communication_pattern) {
+            computeConfigRecvTargets(a_global_config_array,
+               a_local_phase_array);
+            m_need_communication_pattern = false;
+         }
+         headProcsRecvConfigSpaceData(a_global_config_array,
+            a_local_phase_array);
+      }
+   }
+
+   // The head processors owning the local phase space arrays send data to the
+   // non-head processors owning the local phase space arrays.
+   if (m_phase_space_dist.procLo() <= Loki_Utilities::s_my_id &&
+       Loki_Utilities::s_my_id <= m_phase_space_dist.procHi()) {
+      MPI_Bcast(a_local_phase_array.getData(),
+         a_local_phase_array.dataBox().size(),
+         MPI_DOUBLE,
+         0,
+         m_expansion_comm);
+   }
+
+   timers->stopTimer("phys to phase");
+}
+
+
+void
+ExpansionSchedule::computeHeadProcTargets(
+   const ParallelArray& a_global_config_array)
+{
+   int dist_dim = a_global_config_array.distDim();
+   int dim = a_global_config_array.dim();
+   const ParallelArray::Box config_space_box = a_global_config_array.localBox();
+   const vector<int>& dim_partitions = m_phase_space_dist.getDimPartitions();
+   int num_vel_space_partitions = dim_partitions[2]*dim_partitions[3];
+   int this_phase_space_proc = m_phase_space_dist.procLo();
+   for (int i = 0; i < dim_partitions[0]*dim_partitions[1]; ++i) {
+      const ParallelArray::Box phase_space_box =
+         m_phase_space_dist.localBox(this_phase_space_proc);
+      ParallelArray::Box phase_space_box_reduced(dim);
+      for (int d = 0; d < dist_dim; ++d) {
+         phase_space_box_reduced.lower(d) = phase_space_box.lower(d);
+         phase_space_box_reduced.upper(d) = phase_space_box.upper(d);
+      }
+      for (int d = dist_dim; d < dim; ++d) {
+         phase_space_box_reduced.lower(d) = config_space_box.lower(d);
+         phase_space_box_reduced.upper(d) = config_space_box.upper(d);
+      }
+      const ParallelArray::Box send_box = config_space_box.intersect(
+         phase_space_box_reduced);
+      if (!send_box.empty()) {
+         m_send_boxes.push_back(send_box);
+         m_send_targets.push_back(this_phase_space_proc);
+      }
+      this_phase_space_proc += num_vel_space_partitions;
+   }
+}
+
+
+void
+ExpansionSchedule::computeConfigRecvTargets(
+   const ParallelArray& a_global_config_array,
+   const ParallelArray& a_local_phase_array)
+{
+   for (int i = a_global_config_array.procLo();
+        i <= a_global_config_array.procHi(); ++ i) {
+      ParallelArray::Box recv_box = a_local_phase_array.localBox().intersect(
+         a_global_config_array.localBox(i));
+      if (!recv_box.empty()) {
+         m_recv_targets.push_back(i);
+         m_recv_boxes.push_back(recv_box);
+      }
+   }
+}
+
+
+void
+ExpansionSchedule::sendConfigSpaceDataToHeadProcTargets(
+   const ParallelArray& a_global_config_array)
+{
+   // Post sends.
+   int num_sends = static_cast<int>(m_send_targets.size());
+   vector<MPI_Request> sendReqs(num_sends);
+   vector<double*> send_buffers(num_sends);
+   int which_buffer = 0;
+   int which_send = 0;
+   for (int i = 0; i < num_sends; ++i) {
+      const ParallelArray::Box& this_send_box = m_send_boxes[i];
+      int this_buffer_size = this_send_box.size();
+      double* this_send_buffer = new double [this_buffer_size];
+      if (a_global_config_array.dim() == 2) {
+         int buf_idx = 0;
+         for (int y = this_send_box.lower(1);
+              y <= this_send_box.upper(1); ++y) {
+            for (int x = this_send_box.lower(0);
+                 x <= this_send_box.upper(0); ++x) {
+               this_send_buffer[buf_idx++] = a_global_config_array(x, y);
+            }
+         }
+      }
+      else {
+         int buf_idx = 0;
+         for (int comp = this_send_box.lower(2);
+              comp <= this_send_box.upper(2); ++comp) {
+            for (int y = this_send_box.lower(1);
+                 y <= this_send_box.upper(1); ++y) {
+               for (int x = this_send_box.lower(0);
+                    x <= this_send_box.upper(0); ++x) {
+                  this_send_buffer[buf_idx++] =
+                     a_global_config_array(x, y, comp);
+               }
+            }
+         }
+      }
+      send_buffers[i] = this_send_buffer;
+      MPI_Isend(this_send_buffer,
+         this_buffer_size,
+         MPI_DOUBLE,
+         m_send_targets[i],
+         s_TAG,
+         MPI_COMM_WORLD,
+         &sendReqs[which_send++]);
+   }
+
+   // Verify that all the sends have occurred.
+   for (int dest = 0; dest < num_sends; ++dest) {
+      int send_idx;
+      MPI_Status stat;
+      MPI_Waitany(num_sends, &sendReqs[0], &send_idx, &stat);
+      delete [] send_buffers[send_idx];
+   }
+}
+
+
+void
+ExpansionSchedule::headProcsRecvConfigSpaceData(
+   const ParallelArray& a_global_config_array,
+   ParallelArray& a_local_phase_array)
+{
+   // Post receives.
+   int num_recvs = static_cast<int>(m_recv_targets.size());
+   vector<MPI_Request> recvReqs(num_recvs);
+   vector<double*> recv_buffers(num_recvs);
+   for (int src = 0; src < num_recvs; ++src) {
+      int buffer_size = m_recv_boxes[src].size();
+      double* this_recv_buffer = new double [buffer_size];
+      recv_buffers[src] = this_recv_buffer;
+      MPI_Irecv(this_recv_buffer,
+         buffer_size,
+         MPI_DOUBLE,
+         m_recv_targets[src],
+         s_TAG,
+         MPI_COMM_WORLD,
+         &recvReqs[src]);
+   }
+
+   // Process receives as they complete.
+   for (int i = 0; i < num_recvs; ++i) {
+      // Find a completed receive.
+      int recv_idx;
+      MPI_Status stat;
+      MPI_Waitany(num_recvs, &recvReqs[0], &recv_idx, &stat);
+
+      // Get the receive bufffer with which the receive is associated.
+      double* this_recv_buffer = recv_buffers[recv_idx];
+      const ParallelArray::Box& this_recv_box = m_recv_boxes[recv_idx];
+
+      // Fill a_local_phase_array with the received data.
+      if (this_recv_box.dim() == 2) {
+         int buff_idx = 0;
+         for (int j = this_recv_box.lower(1);
+              j <= this_recv_box.upper(1); ++j) {
+            for (int i = this_recv_box.lower(0);
+                 i <= this_recv_box.upper(0); ++i) {
+               a_local_phase_array(i, j) = this_recv_buffer[buff_idx++];
+            }
+         }
+      }
+      else {
+         int buff_idx = 0;
+         for (int k = this_recv_box.lower(2);
+              k <= this_recv_box.upper(2); ++k) {
+            for (int j = this_recv_box.lower(1);
+                 j <= this_recv_box.upper(1); ++j) {
+               for (int i = this_recv_box.lower(0);
+                    i <= this_recv_box.upper(0); ++i) {
+                  a_local_phase_array(i, j, k) = this_recv_buffer[buff_idx++];
+               }
+            }
+         }
+      }
+
+      // Delete the receive buffer.
+      delete [] this_recv_buffer;
+   }
+}
+
+
+void
+ExpansionSchedule::constructExpansionCommunicator(
+   const ProblemDomain& a_domain,
+   MPI_Comm a_comm)
+{
+   const ParallelArray::Box& interior_box = m_phase_space_dist.interiorBox();
+   int config_space_id =
+      interior_box.lower(X2)*a_domain.box().numberCells(X1)+
+      interior_box.lower(X1);
+   int comm_id;
+   MPI_Comm_rank(a_comm, &comm_id);
+   const int status = MPI_Comm_split(a_comm,
+      config_space_id,
+      comm_id,
+      &m_expansion_comm);
+   if (status != MPI_SUCCESS) {
+      LOKI_ABORT("Configuration space splitting of MPI communicator failed");
+   }
+   MPI_Comm_rank(m_expansion_comm, &m_expansion_comm_id);
 }
 
 } // end namespace Loki

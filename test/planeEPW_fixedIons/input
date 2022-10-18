@@ -1,1 +1,1 @@
-1.0e-12 1.0e-14 1.0e-8 1.0e1 tstol planeEPW_fixedIons planeEPW_fixedIons 1 6 0
+dist_tol tstol field_tol planeEPW_fixedIons planeEPW_fixedIons 1 0

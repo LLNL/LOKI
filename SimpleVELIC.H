@@ -1,45 +1,17 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _SIMPLE_VEL_IC_H_
 #define _SIMPLE_VEL_IC_H_
 
 #include "VELICInterface.H"
-#include "ParmParse.H"
+#include "LokiInputParser.H"
 
 namespace Loki {
 
@@ -60,7 +32,7 @@ public:
     * @param[in] a_pp Where the input parameters are to be found.
     */
    SimpleVELIC(
-      ParmParse& a_pp);
+      LokiInputParser& a_pp);
 
    /**
     * @brief Destructor.
@@ -82,7 +54,7 @@ public:
    virtual
    void
    set(
-      RealArray& a_vz,
+      ParallelArray& a_vz,
       const ProblemDomain& a_domain) const;
 
    /**
@@ -91,6 +63,14 @@ public:
    virtual
    void
    printParameters() const;
+
+   /**
+    * @brief Returns the number of EM waves initializing the transverse drift
+    *        velocity.
+    */
+   virtual
+   int
+   numWaves();
 
    //@}
 
@@ -104,7 +84,7 @@ public:
    static
    bool
    isType(
-      const aString& a_name);
+      const string& a_name);
 
 private:
    // Unimplemented copy constructor.
@@ -117,18 +97,23 @@ private:
       const SimpleVELIC& rhs);
 
    // The name of this type of electromagnetic initial condition.
-   static const aString s_CLASS_NAME;
+   static const string s_CLASS_NAME;
 
-   // Indices of specific parameters in m_dparameters.
-   enum {
-      AMP,
-      X_WAVE_NUMBER,
-      Y_WAVE_NUMBER,
-      PHI,
-      NUM_DPARAMS};
+   // The number of wave initializers.
+   int m_num_waves;
 
-   // The double valued parameters.
-   RealArray m_dparameters;
+   // The amplitude of each wave's contribution to the transverse drift
+   // velocity.
+   vector<double> m_amp;
+
+   // The x wave number of each wave.
+   vector<double> m_x_wave_number;
+
+   // The y wave number of each wave.
+   vector<double> m_y_wave_number;
+
+   // The phase of each wave's contribution to the transverse drift velocity.
+   vector<double> m_phi;
 };
 
 } // end namespace Loki

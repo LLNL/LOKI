@@ -1,49 +1,20 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _REDUCTION_SCHEDULE_H_
 #define _REDUCTION_SCHEDULE_H_
 
-#include "Overture.h"
+#include "ParallelArray.H"
 #include "Directions.H"
 #include "ProblemDomain.H"
-#include "tbox/Pointer.H"
 #include "tbox/Dimension.H"
-#include "Reduction.H"
+#include <deque>
 
 namespace Loki {
 
@@ -57,20 +28,22 @@ public:
    /**
     * @brief Constructor.
     *
-    * @param[in] a_local_src_array The local array to be reduced.
-    * @param[in] a_local_interior_box Range of the reduction.
+    * @param[in] a_src_array The array to be reduced.
     * @param[in] a_domain Global problem domain.
-    * @param[in] a_reduction Specific reduction to be performed.
-    * @param[in] a_processor_range Processors involved in reduction.
+    * @param[in] a_collapse_dir True in each dimension to be reduced.
+    * @param[in] a_nghosts Number of ghosts in a_src_array.
+    * @param[in] a_dv Integration volume differential.
+    * @param[in] a_weight Weight to apply to reduction.
     * @param[in] a_comm Communicator corresponding to processor_range
     */
    ReductionSchedule(
-      const RealArray& a_local_src_array,
-      const tbox::Box& a_local_interior_box,
+      const ParallelArray& a_src_array,
       const ProblemDomain& a_domain,
-      const tbox::Pointer<Reduction>& a_reduction,
-      const Range& a_processor_range,
-      const MPI_Comm& a_comm);
+      const deque<bool>& a_collapse_dir,
+      int a_nghosts,
+      double a_dv,
+      double a_weight,
+      MPI_Comm& a_comm);
 
    /**
     * @brief Destructor.
@@ -80,13 +53,11 @@ public:
    /**
     * @brief Perform the reduction.
     *
-    * @param[in] a_global_dst_array The global array for the reduction.
-    * @param[in] a_kernel_op Pre/post processing of the kernel.
+    * @param[in] a_dst_array The result of the reduction.
     */
    void
    execute(
-      realArray& a_global_dst_array,
-      const KernelOp& a_kernel_op);
+      ParallelArray& a_dst_array);
 
 private:
    // Unimplemented default constructor.
@@ -105,27 +76,15 @@ private:
    void
    computeSrcAndDstDimensions();
 
-   // Compute range of local destination.
+   // Allocates the result of the dimension reduction of m_src_array.
    void
-   computeLocalDstIndexArray();
-
-   // Compute range of global destination.
-   void
-   computeGlobalDstIndexArray();
-
-   // Constructs set of processors that hold local reduced data.
-   void
-   constructSetOfProcessors(
-      const Range& a_processor_range);
-
-   // Allocates the local reduction destination.
-   void
-   allocateLocalDestinationArray(
-      RealArray& a_local_dst_array);
+   allocateReducedSrcArray(
+      int a_nghosts);
 
    // Construct communicator over which reduction takes place.
    void
-   constructCommunicator();
+   constructCommunicator(
+      MPI_Comm& a_comm);
 
    // Returns true if a_proc_id is in the range of processors
    // a_processor_range.
@@ -133,10 +92,10 @@ private:
    bool
    isInRange(
       int a_proc_id,
-      const Range& a_processor_range)
+      int a_proc_lo,
+      int a_proc_hi)
    {
-      return ((a_proc_id >= a_processor_range.getBase()) &&
-              (a_proc_id <= a_processor_range.getBound()));
+      return ((a_proc_id >= a_proc_lo) && (a_proc_id <= a_proc_hi));
    }
 
    // Returns true if this is a head node.
@@ -146,54 +105,106 @@ private:
       return m_reduction_comm_id == 0;
    }
 
-   // Returns true if this processor sends or receives data.
-   bool
-   thisProcessorSendsOrReceivesData(
-      const bool& a_this_processor_will_receive_data)
-   {
-      return (m_this_processor_has_data || a_this_processor_will_receive_data);
-   }
+   // Looks at src and dst dimensions and calls appropriate sum_reduce* method
+   // to reduce dimension.
+   void
+   reduceDimension();
+
+   // Perform diimension reduction from 1 to 0 dimensions.
+   void
+   sum_reduce_1d_to_0d();
+
+   // Perform diimension reduction from 2 to 0 dimensions.
+   void
+   sum_reduce_2d_to_0d();
+
+   // Perform diimension reduction from 2 to 1 dimensions.
+   void
+   sum_reduce_2d_to_1d();
+
+   // Perform diimension reduction from 3 to 0 dimensions.
+   void
+   sum_reduce_3d_to_0d();
+
+   // Perform diimension reduction from 3 to 1 dimensions.
+   void
+   sum_reduce_3d_to_1d();
+
+   // Perform diimension reduction from 3 to 2 dimensions.
+   void
+   sum_reduce_3d_to_2d();
+
+   // Perform diimension reduction from 4 to 0 dimensions.
+   void
+   sum_reduce_4d_to_0d();
+
+   // Perform diimension reduction from 4 to 1 dimensions.
+   void
+   sum_reduce_4d_to_1d();
+
+   // Perform diimension reduction from 4 to 2 dimensions.
+   void
+   sum_reduce_4d_to_2d();
+
+   // Perform diimension reduction from 4 to 3 dimensions.
+   void
+   sum_reduce_4d_to_3d();
+
+   // Sum the reduced array to the head processors for the reduced dimension.
+   void
+   sumToHeadProcs();
+
+   // Precomputes the destination processors to send data to.
+   void
+   computeSendTargets(
+      ParallelArray& a_dst_array);
+
+   // Precomputes the head nodes to receive data from.
+   void
+   computeRecvTargets(
+      ParallelArray& a_dst_array);
+
+   // Send the summed, reduced data from the head processors to the destination
+   // processors.
+   void
+   sendHeadProcDataToDestProcs(
+      ParallelArray& a_dst_array);
+
+   // The destination processors receive the summed, reduced data from the head
+   // processors.
+   void
+   destProcsRecvHeadProcData(
+      ParallelArray& a_dst_array);
 
    // Local source of reduction.
-   const RealArray& m_local_src_array;
+   const ParallelArray& m_src_array;
 
-   // Local result of reduction.
-   RealArray m_local_dst_array;
+    // m_src_array after dimension reduction.
+   ParallelArray m_reduced_src_array;
 
    // Range over which reduction occurs.
-   tbox::Box m_local_interior_box;
+   ParallelArray::Box m_src_interior_box;
 
    // Box describing global problem domain.
    tbox::Box m_domain_box;
 
    // True in each direction to be reduced.
-   Array<bool> m_collapse_dir;
+   deque<bool> m_collapse_dir;
 
-   // The range of data in m_local_dst_array to be communicated to the global
-   // destination array.
-   Array<Index> m_local_dst_index;
+   // Integration volume differential.
+   double m_dv;
 
-   // The range of data in the global destination array that receives data from
-   // m_local_dst_array.
-   Array<Index> m_global_dst_index;
+   // Weight to apply to reduction.
+   double m_weight;
 
    // The source array dimension minus the number of dimensions being collapsed.
    int m_dst_dim;
 
-   // The processor IDs based on m_comm of the head nodes.
-   IntegerArray m_proc_set;
+   // The dimensions that are not collapsed.
+   vector<int> m_kept_dims;
 
    // True if this processor is involved in the reduction.
    bool m_is_in_proc_range;
-
-   // True if this processor has data 
-   bool m_this_processor_has_data;
-
-   // The communicator containing the processors involved in the reduction.
-   MPI_Comm m_comm;
-
-   // Processor ID on m_comm.
-   int m_comm_id;
 
    // The communicator containing all processors dealing with the same piece
    // of configuration space.
@@ -202,11 +213,26 @@ private:
    // The processor ID on m_reduction_comm.
    int m_reduction_comm_id;
 
-   // User supplied reduction.
-   tbox::Pointer<Reduction> m_reduction;
+   // If true, the communication pattern must be precompute.
+   bool m_need_communication_pattern;
+
+   // The processors that head nodes send data to.
+   vector<int> m_send_targets;
+
+   // The head nodes that the reduction destination receives data from.
+   vector<int> m_recv_targets;
+
+   // The box describing the local part of the data sent from each head node.
+   vector<ParallelArray::Box> m_recv_local_boxes;
+
+   // The box describing the data sent from each head node.
+   vector<ParallelArray::Box> m_recv_boxes;
 
    // Maximum dimension reduction may be applied to.
-   const static int s_MAX_DIM;
+   static const int s_MAX_DIM;
+
+   // Tag for send of reduced source array to destination array.
+   static const int s_TAG;
 };
 
 } // end namespace Loki

@@ -1,29 +1,70 @@
-maxEnorm 1.0e-10
-intEnorm 1.0e-10
-maxEx 1.0e-10
-maxEy 1.0e-30
-intEnorm2 1.0e-9
-probeEx 1.0e-8
-probeEy 1.0e-30
-particleX 1.0e-30
-particleY 1.0e-30
-particleVx 1.0e-30
-particleVy 1.0e-30
-electron.intKE 1.0e-14
-electron.KEfluxXlo 1.0e-8
-electron.KEfluxXhi 1.0e-8
-electron.KEfluxYlo 1.0e-30
-electron.KEfluxYhi 1.0e-30
-electron.KEfluxVxlo 1.0e-8
-electron.KEfluxVxhi 1.0e-8
-electron.KEfluxVylo 1.0e-8
-electron.KEfluxVyhi 1.0e-8
-ion.intKE 1.0e-14
-ion.KEfluxXlo 1.0e-8
-ion.KEfluxXhi 1.0e-8
-ion.KEfluxYlo 1.0e-30
-ion.KEfluxYhi 1.0e-30
-ion.KEfluxVxlo 1.0e-8
-ion.KEfluxVxhi 1.0e-8
-ion.KEfluxVylo 1.0e-8
-ion.KEfluxVyhi 1.0e-8
+E_max
+1.0e-15
+norm E
+1.0e-15
+Ex_max
+1.0e-15
+Ey_max
+1.0e-15
+field_energy
+1.0e-15
+electron_ke
+1.0e-15
+electron_ke_x
+1.0e-15
+electron_ke_y
+1.0e-15
+electron_px
+1.0e-15
+electron_py
+1.0e-14
+electron_xlo_flux
+1.0e-15
+electron_xhi_flux
+1.0e-15
+electron_vxlo_flux
+1.0e-15
+electron_vxhi_flux
+1.0e-15
+electron_ylo_flux
+1.0e-15
+electron_yhi_flux
+1.0e-15
+electron_vylo_flux
+1.0e-15
+electron_vyhi_flux
+1.0e-15
+electron_ke_e_dot
+1.0e-15
+electron_driver_time_envel
+1.0e-15
+ion_ke
+1.0e-15
+ion_ke_x
+1.0e-15
+ion_ke_y
+1.0e-15
+ion_px
+1.0e-15
+ion_py
+1.0e-14
+ion_xlo_flux
+1.0e-15
+ion_xhi_flux
+1.0e-15
+ion_vxlo_flux
+1.0e-15
+ion_vxhi_flux
+1.0e-15
+ion_ylo_flux
+1.0e-15
+ion_yhi_flux
+1.0e-15
+ion_vylo_flux
+1.0e-15
+ion_vyhi_flux
+1.0e-15
+ion_ke_e_dot
+1.0e-15
+ion_driver_time_envel
+1.0e-15

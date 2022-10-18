@@ -3,7 +3,8 @@
 
 FILE_0=Box.o
 DEPENDS_0:=\
-	Box.C Box.H Dimension.H IntVector.H MathUtilities.H Utilities.H
+	../Loki_Defines.H Box.C Box.H Dimension.H IntVector.H		\
+	MathUtilities.H Utilities.H
 
 DEPENDS_0 +=\
 	
@@ -34,7 +35,7 @@ ${FILE_2}: ${DEPENDS_2}
 
 FILE_3=Dimension.o
 DEPENDS_3:=\
-	Dimension.C Dimension.H Utilities.H
+	../Loki_Defines.H Dimension.C Dimension.H Utilities.H
 
 DEPENDS_3 +=\
 	
@@ -44,6 +45,7 @@ ${FILE_3}: ${DEPENDS_3}
 
 FILE_4=IntVector.o
 DEPENDS_4:=\
+	../Loki_Defines.H ../RestartReader.H ../RestartWriter.H		\
 	Dimension.H IntVector.C IntVector.H MathUtilities.H Utilities.H
 
 DEPENDS_4 +=\
@@ -75,7 +77,7 @@ ${FILE_6}: ${DEPENDS_6}
 
 FILE_7=ReferenceCounter.o
 DEPENDS_7:=\
-	ReferenceCounter.C ReferenceCounter.H
+	../Loki_Defines.H ReferenceCounter.C ReferenceCounter.H
 
 DEPENDS_7 +=\
 	

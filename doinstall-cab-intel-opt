@@ -1,0 +1,3 @@
+use pgi-12.1
+
+./configure --with-CXX=icpc --with-CC=icc --with-F77=pgf77 --with-overture=/usr/gapps/valhalla/LOKI/PACKAGES/Overture.6thorderfix --enable-debug=no --enable-opt=yes --with-mpi-include=/usr/local/tools/mvapich2-gnu/include --with-mpi-lib-dirs=/usr/local/tools/mvapich2-gnu/lib --with-mpi-libs="mpich pmi mpl"

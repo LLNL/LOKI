@@ -1,48 +1,23 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _TIMER_MANAGER_H_
 #define _TIMER_MANAGER_H_
 
-#include "Overture.h"
+#include "Loki_Defines.H"
 #include "tbox/Pointer.H"
 
+#include <mpi.h>
 #include <string>
 #include <vector>
+
+using namespace std;
 
 namespace Loki {
 
@@ -71,7 +46,7 @@ public:
     */
    bool
    timerExists(
-      const std::string& a_name) const;
+      const string& a_name) const;
 
    /**
     * @brief Create the named timer.
@@ -82,7 +57,7 @@ public:
     */
    void
    createTimer(
-      const std::string& a_name);
+      const string& a_name);
 
    /**
     * @brief Start the named timer.
@@ -94,7 +69,7 @@ public:
     */
    void
    startTimer(
-      const std::string& a_name);
+      const string& a_name);
 
    /**
     * @brief Stop the named timer.
@@ -106,11 +81,11 @@ public:
     */
    void
    stopTimer(
-      const std::string& a_name);
+      const string& a_name);
 
    /**
     * @brief Stop all running timers, print elapsed time info for each existing
-    * timer, then restart all timers that were running.
+    *        timer, then restart all timers that were running.
     *
     * @param[in] a_step_number Simulation step.
     * @param[in] a_number_of_cells Number of cells in problem.
@@ -122,7 +97,7 @@ public:
 
    /**
     * @brief Stop all running timers, print exclusive time info for each
-    * existing timer, then restart all timers that were running.
+    *        existing timer, then restart all timers that were running.
     *
     * @param[in] a_step_number Simulation step.
     * @param[in] a_number_of_cells Number of cells in problem.
@@ -162,7 +137,7 @@ private:
       /**
        * @brief Returns the name of the Timer.
        */
-      const std::string&
+      const string&
       name() const
       {
          return m_name;
@@ -175,11 +150,11 @@ private:
       start()
       {
          if (m_is_started) {
-            OV_ABORT("Timer " + m_name + " already running!");
+            LOKI_ABORT("Timer " + m_name + " already running!");
          }
          m_is_started = true;
          m_is_running = true;
-         m_start = getCPU();
+         m_start = MPI_Wtime();
          m_start_exclusive = m_start;
       }
 
@@ -190,11 +165,11 @@ private:
       stop()
       {
          if (!m_is_started) {
-            OV_ABORT("Timer " + m_name + " not running!");
+            LOKI_ABORT("Timer " + m_name + " not running!");
          }
          m_is_started = false;
          m_is_running = false;
-         real stop = getCPU();
+         double stop = MPI_Wtime();
          m_time += double(stop - m_start);
          m_time_exclusive += double(stop - m_start_exclusive);
       }
@@ -206,10 +181,10 @@ private:
       restart_exclusive()
       {
          if (m_is_running) {
-            OV_ABORT("Timer " + m_name + " already running!");
+            LOKI_ABORT("Timer " + m_name + " already running!");
          }
          m_is_running = true;
-         m_start_exclusive = getCPU();
+         m_start_exclusive = MPI_Wtime();
       }
 
       // Stop exclusive timing of this timer.
@@ -217,27 +192,27 @@ private:
       stop_exclusive()
       {
          if (!m_is_running) {
-            OV_ABORT("Timer " + m_name + " not running!");
+            LOKI_ABORT("Timer " + m_name + " not running!");
          }
          m_is_running = false;
-         real stop = getCPU();
+         double stop = MPI_Wtime();
          m_time_exclusive += double(stop - m_start_exclusive);
       }
 
       // Constructor.  May only be constructed by TimerManager.
       explicit Timer(
-         const std::string& a_name);
+         const string& a_name);
 
       // Returns the elapsed time accumulated by this timer--the difference
       // between when the timer stopped and when it started.
-      real
+      double
       elapsedTime() const
       {
          return m_time;
       }
 
       // Returns the exclusive time accumulated by this timer.
-      real
+      double
       exclusiveTime() const
       {
          return m_time_exclusive;
@@ -265,7 +240,7 @@ private:
          const Timer& rhs);
 
       // Name of timer.
-      std::string m_name;
+      string m_name;
 
       // True if timer is running and therefore accumulating exclusive time.
       bool m_is_running;
@@ -275,16 +250,16 @@ private:
       bool m_is_started;
 
       // Accumulated elapsed time.
-      real m_time;
+      double m_time;
 
       // Accumulated exclusive time.
-      real m_time_exclusive;
+      double m_time_exclusive;
 
       // Time when the time was started.
-      real m_start;
+      double m_start;
 
       // Time when exclusive timing started.
-      real m_start_exclusive;
+      double m_start_exclusive;
    };
 
    // The singleton instance.
@@ -308,14 +283,14 @@ private:
    // The last timer started.
    Timer* m_current_timer;
 
-   typedef std::vector<Timer*> TimerList;
+   typedef vector<Timer*> TimerList;
 
    // All timers that have been created.
    TimerList m_timers;
 
    // All running timers.  The first member is the first timer started and the
    // last member is the last one started.
-   std::vector<Timer*> m_running_timers;
+   vector<Timer*> m_running_timers;
 };
 
 } // end namespace Loki

@@ -5,9 +5,8 @@ $ya = -1*$pi;
 $yb =  1*$pi;
 #
 #
-$EMass = 1 ; 
-$vthE = sqrt(1.0/$EMass) ; 
-$EAlpha = 1/$vthE ; 
+$EMass = 1 ;
+$ET = 1.0;
 #
 #
 $vExmax =  7;
@@ -52,8 +51,8 @@ kinetic_species.1.tz.amp = 0.1
 #
 #
 kinetic_species.1.ic.name = "Perturbed Maxwellian"
-kinetic_species.1.ic.alpha = $EAlpha 
-kinetic_species.1.ic.beta = $EAlpha 
+kinetic_species.1.ic.tx = $ET 
+kinetic_species.1.ic.ty = $ET 
 kinetic_species.1.ic.vx0 = 0.0
 kinetic_species.1.ic.vy0 = 0.0
 kinetic_species.1.ic.A = 0.0

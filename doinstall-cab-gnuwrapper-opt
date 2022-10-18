@@ -1,0 +1,3 @@
+use pgi-12.1
+
+./configure CFLAGS="-mpi=mvapich2-gnu" CXXFLAGS="-mpi=mvapich2-gnu" FFLAGS="-mpi=mvapich2-gnu" --with-CXX=mpig++ --with-CC=mpigcc --with-F77=mpipgf77 --with-overture=/usr/gapps/valhalla/LOKI/PACKAGES/Overture.6thorderfix --enable-debug=no --enable-opt=yes

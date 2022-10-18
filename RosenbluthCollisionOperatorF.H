@@ -1,49 +1,35 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _ROSENBLUTH_COLLISION_OPERATOR_FORT_H_
 #define _ROSENBLUTH_COLLISION_OPERATOR_FORT_H_
 
 #define FORT_APPEND_ROSENBLUTH_COLLISION appendrosenbluthcollision_
-#define FORT_COMPUTE_ROSENBLUTH_CONSTANTS computerosenbluthconstants_
+#define FORT_GET_MAX_RELAM getmaxrelam_
 #define FORT_COMPUTE_ROSENBLUTH_TEMPS computerosenbluthtemps_
 #define FORT_COMPUTE_ROSENBLUTH_DENOMS computerosenbluthdenoms_
 #define FORT_COMPUTE_ROSENBLUTH_NUMERATORS computerosenbluthnumerators_
 #define FORT_APPEND_ROSENBLUTH_BACK_REACTION appendrosenbluthbackreaction_
+
+#define FORT_COMPUTE_ROSENBLUTH_SPECIES_MOMENTS computerosenbluthspeciesmoments_
+#define FORT_COMPUTE_ROSENBLUTH_DIFFUSION_TENSOR computerosenbluthdiffusiontensor_
+#define FORT_COMPUTE_ROSENBLUTH_SPECIES_KEC computerosenbluthspecieskec_
+#define FORT_GET_COMMUNICATED_SPECIES_MOMENTS getcommunicatedspeciesmoments_
+#define FORT_GET_COMMUNICATED_BR_SPECIES_MOMENTS getcommunicatedbrspeciesmoments_
+#define FORT_SET_COMMUNICATED_SPECIES_MOMENTS setcommunicatedspeciesmoments_
+#define FORT_SET_COMMUNICATED_SPECIES_BR_MOMENTS setcommunicatedspeciesbrmoments_
+#define FORT_COMPUTE_ROSENBLUTH_SPECIES_REDUCED_FIELDS computerosenbluthspeciesreducedfields_
+#define FORT_COMPUTE_ROSENBLUTH_SPECIES_VTHERMAL computerosenbluthspeciesvthermal_
+
+#define FORT_ADD_TO_DOUBLEARRAY_4D addtodoublearray4d_
+
+#define FORT_COMPUTE_ROSENBLUTH_ENTROPY_CHANGE computerosenbluthentropychange_
 
 /**
  * Prototypes of fortran functions called by RosenbluthCollisionOperator.
@@ -52,12 +38,15 @@ extern "C" {
 
    void
    FORT_APPEND_ROSENBLUTH_COLLISION(
-      real &rhs,
-      const real &u,
-      const real &vx,
-      const real &vy,
-      const real &khat,
-      const real &hhat,
+      double &rhs,
+      const double &u,
+      const double &velocities,
+      const double &IVx,
+      const double &IVy,
+      const double &d,
+      const double &Vth,
+      const double &N,
+      const double &massR,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -74,54 +63,33 @@ extern "C" {
       const int &n3hi,
       const int &n4lo,
       const int &n4hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& dparams,
+      const double &dx,
+      const double& dparams,
       const int& iparams);
 
    void
-   FORT_COMPUTE_ROSENBLUTH_CONSTANTS(
-      real &khat,
-      real &hhat,
-      real &vx,
-      real &vy,
-      const int &n1lo,
-      const int &n1hi,
-      const int &n2lo,
-      const int &n2hi,
-      const int &n3lo,
-      const int &n3hi,
-      const int &n4lo,
-      const int &n4hi,
-      const int& nGhosts,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& dparams,
+   FORT_GET_MAX_RELAM(
+      double& reLamMax,
+      const double& reLam,
+      const int& n1lo,
+      const int& n1hi,
+      const int& n2lo,
+      const int& n2hi,
+      const int& n3lo,
+      const int& n3hi,
+      const int& n4lo,
+      const int& n4hi,
       const int& iparams);
 
    void
-   FORT_COMPUTE_ROSENBLUTH_TEMPS(
-      real &fM,
-      real &uMomx,
-      real &uMomy,
-      real &uKE,
-      const int &nd1lo,
-      const int &nd1hi,
-      const int &nd2lo,
-      const int &nd2hi,
-      const int &nd3lo,
-      const int &nd3hi,
-      const int &nd4lo,
-      const int &nd4hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& dparams);
-
-   void
-   FORT_COMPUTE_ROSENBLUTH_DENOMS(
-      real &rMomx,
-      real &rMomy,
-      real &rKE,
-      const real &cMomx,
-      const real &cMomy,
-      const real &cKE,
+   FORT_COMPUTE_ROSENBLUTH_DIFFUSION_TENSOR(
+      double &d,
+      double &reLam,
+      const double &mass_ratio,
+      const double &rVx0,
+      const double &rVy0,
+      const double &IvTh,
+      const double &N,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -139,18 +107,34 @@ extern "C" {
       const int &n4lo,
       const int &n4hi,
       PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& dparams);
+      const double &velocities,
+      const int& BR,
+      const int& compute_re_lam,
+      const double& range_lo,
+      const double& range_hi,
+      const double& dparams,
+      const int& iparams);
+  
+   void
+   FORT_ADD_TO_DOUBLEARRAY_4D(
+      double &a,
+      const double &b,
+      const double &ca,
+      const double &cb,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi);
 
    void
-   FORT_COMPUTE_ROSENBLUTH_NUMERATORS(
-      real &rMomx,
-      real &rMomy,
-      real &rKE,
-      const real &cMomx,
-      const real &cMomy,
-      const real &cKE,
-      const real &fM,
-      const real &u,
+   FORT_COMPUTE_ROSENBLUTH_ENTROPY_CHANGE(
+      double &rEnt,
+      const double &u,
+      const double &dudt,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -167,19 +151,36 @@ extern "C" {
       const int &n3hi,
       const int &n4lo,
       const int &n4hi);
+  
+   void
+   FORT_COMPUTE_ROSENBLUTH_TEMPS(
+      double &uMomx,
+      double &uMomy,
+      double &uKE,
+      const double &IVx,
+      const double &IVy,
+      const double &Vth,
+      const double &n,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const double& velocities);
 
    void
-   FORT_APPEND_ROSENBLUTH_BACK_REACTION(
-      real& rhs,
-      const real& cMomx,
-      const real& cMomy,
-      const real& cKE,
-      const real& IMomxN,
-      const real& IMomyN,
-      const real& IKEN,
-      const real& IMomxD,
-      const real& IMomyD,
-      const real& IKED,
+   FORT_COMPUTE_ROSENBLUTH_DENOMS(
+      double &rMomx,
+      double &rMomy,
+      double &rKE,
+      const double &cMomx,
+      const double &cMomy,
+      const double &cKE,
+      const double &IVx,
+      const double &IVy,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -196,7 +197,242 @@ extern "C" {
       const int &n3hi,
       const int &n4lo,
       const int &n4hi,
-      const real& dparams);
+      const double& velocities);
+
+   void
+   FORT_COMPUTE_ROSENBLUTH_NUMERATORS(
+      double &rMomx,
+      double &rMomy,
+      double &rKE,
+      const double &IVx,
+      const double &IVy,
+      const double &dfa,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const double& velocities);
+
+  void
+  FORT_COMPUTE_ROSENBLUTH_SPECIES_MOMENTS(
+      double &rN,
+      double &rGammax,
+      double &rGammay,
+      double &rKE,
+      const double &u,
+      const int &diagnostics,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const double& velocities);
+
+  void
+  FORT_COMPUTE_ROSENBLUTH_SPECIES_KEC(
+      double &rKEC,
+      const double &rVx0,
+      const double &rVy0,
+      const double &u,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const double& velocities);
+
+  void
+  FORT_COMPUTE_ROSENBLUTH_SPECIES_REDUCED_FIELDS(
+      double &vx,
+      double &vy,
+      const double &n,
+      const double &Gammax,
+      const double &Gammay,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi);
+  
+  void
+  FORT_GET_COMMUNICATED_SPECIES_MOMENTS(
+      double &data,
+      const double &n,
+      const double &vx,
+      const double &vy,
+      const double &vthsq,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const int &nf);
+
+  void
+  FORT_GET_COMMUNICATED_BR_SPECIES_MOMENTS(
+      double &data,
+      const double &IMomxN,
+      const double &IMomyN,
+      const double &IKEN,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const int &nf,
+      const int &other_species_loc);
+
+  void
+  FORT_SET_COMMUNICATED_SPECIES_MOMENTS(
+      double &n,
+      double &vx,
+      double &vy,
+      double &vthsq,
+      const double &data,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const int &nf);
+  
+  void
+  FORT_SET_COMMUNICATED_SPECIES_BR_MOMENTS(
+      double &IMomxN,
+      double &IMomyN,
+      double &IKEN,
+      const double &data,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const int &nf);
+  
+  void
+  FORT_COMPUTE_ROSENBLUTH_SPECIES_VTHERMAL(
+      double &vthsq,
+      const double &KEC,
+      const double &n,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi);
+  
+   void
+   FORT_APPEND_ROSENBLUTH_BACK_REACTION(
+      double& rhs,
+      const double& cMomx,
+      const double& cMomy,
+      const double& cKE,
+      const double& IMomxN,
+      const double& IMomyN,
+      const double& IKEN,
+      const double& IMomxD,
+      const double& IMomyD,
+      const double& IKED,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
+      const int &n1lo,
+      const int &n1hi,
+      const int &n2lo,
+      const int &n2hi,
+      const int &n3lo,
+      const int &n3hi,
+      const int &n4lo,
+      const int &n4hi,
+      const double& massR);
 };
 
 #endif

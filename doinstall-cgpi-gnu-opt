@@ -1,0 +1,3 @@
+./configure --with-CXX=mpicxx --with-CC=mpicc --with-F77=mpif77 --with-overture=/export/cgpi/loki_packages/Overture.6thorderfix --enable-debug=no --enable-opt=yes
+
+make

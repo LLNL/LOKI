@@ -3,9 +3,17 @@
 
 FILE_0=CollisionOperator.o
 DEPENDS_0:=\
-	CollisionOperator.C CollisionOperator.H CollisionOperatorF.H	\
-	ProblemDomain.H tbox/Box.H tbox/DescribedClass.H		\
-	tbox/Dimension.H tbox/IntVector.H
+	CollisionOperator.C CollisionOperator.H ContractionSchedule.H	\
+	Directions.H ElectricFieldDriver.H ExpansionSchedule.H		\
+	External2VIC.H ExternalDistKrook.H ICInterface.H		\
+	KineticSpecies.H KineticSpeciesF.H KrookLayer.H Load.H		\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	ReductionSchedule.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H SummationSchedule.H	\
+	System.H TZSourceInterface.H ThermalBehavior.H TimerManager.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_0 +=\
 	
@@ -26,9 +34,18 @@ ${FILE_1}: ${DEPENDS_1}
 FILE_2=CollisionOperatorFactory.o
 DEPENDS_2:=\
 	CollisionOperator.H CollisionOperatorFactory.C			\
-	CollisionOperatorFactory.H Directions.H				\
-	PitchAngleCollisionOperator.H ProblemDomain.H ReductionOp.H	\
-	ReductionSchedule4D.H RosenbluthCollisionOperator.H tbox/Box.H	\
+	CollisionOperatorFactory.H ContractionSchedule.H Directions.H	\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H ICInterface.H KineticSpecies.H		\
+	KineticSpeciesF.H KrookLayer.H Load.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H					\
+	OriginalRosenbluthCollisionOperator.H ParallelArray.H		\
+	PitchAngleCollisionOperator.H ProblemDomain.H ReaderWriterBase.H\
+	ReductionSchedule.H ReductionSchedule4D.H RestartReader.H	\
+	RestartReaderWriterBase.H RestartWriter.H			\
+	RosenbluthCollisionOperator.H Serializable.H Simulation.H	\
+	SummationSchedule.H System.H TZSourceInterface.H		\
+	ThermalBehavior.H TimerManager.H tbox/Box.H			\
 	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
 	tbox/Pointer.H
 
@@ -40,10 +57,11 @@ ${FILE_2}: ${DEPENDS_2}
 
 FILE_3=ContractionSchedule.o
 DEPENDS_3:=\
-	BoxOps.H ContractionSchedule.C ContractionSchedule.H		\
-	Directions.H KernelOp.H Loki_Utilities.H ProblemDomain.H	\
-	TimerManager.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H\
-	tbox/IntVector.H tbox/Pointer.H
+	ContractionSchedule.C ContractionSchedule.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H ProblemDomain.H	\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H TimerManager.H tbox/Box.H tbox/DescribedClass.H	\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_3 +=\
 	
@@ -53,8 +71,11 @@ ${FILE_3}: ${DEPENDS_3}
 
 FILE_4=CurrentDriver.o
 DEPENDS_4:=\
-	CurrentDriver.C CurrentDriver.H ProblemDomain.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	CurrentDriver.C CurrentDriver.H LokiInputParser.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_4 +=\
 	
@@ -65,8 +86,12 @@ ${FILE_4}: ${DEPENDS_4}
 FILE_5=CurrentDriverFactory.o
 DEPENDS_5:=\
 	CurrentDriver.H CurrentDriverFactory.C CurrentDriverFactory.H	\
-	ProblemDomain.H ShapedRampedCosineCurrentDriver.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	GaussianCurrentDriver.H LokiInputParser.H Loki_Defines.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	ShapedRampedCosineCurrentDriver.H UnidirectionalCurrentDriver.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_5 +=\
 	
@@ -76,9 +101,11 @@ ${FILE_5}: ${DEPENDS_5}
 
 FILE_6=EMICFactory.o
 DEPENDS_6:=\
-	EMICFactory.C EMICFactory.H EMICInterface.H ProblemDomain.H	\
-	SimpleEMIC.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H	\
-	tbox/IntVector.H
+	EMICFactory.C EMICFactory.H EMICInterface.H LokiInputParser.H	\
+	Loki_Defines.H ParallelArray.H ProblemDomain.H			\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H SimpleEMIC.H tbox/Box.H tbox/DescribedClass.H	\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_6 +=\
 	
@@ -88,8 +115,11 @@ ${FILE_6}: ${DEPENDS_6}
 
 FILE_7=EMICInterface.o
 DEPENDS_7:=\
-	EMICInterface.C EMICInterface.H ProblemDomain.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	EMICInterface.C EMICInterface.H LokiInputParser.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_7 +=\
 	
@@ -97,11 +127,16 @@ DEPENDS_7 +=\
 
 ${FILE_7}: ${DEPENDS_7}
 
-FILE_8=ElectricFieldDriver.o
+FILE_8=EMSolverBase.o
 DEPENDS_8:=\
-	ElectricFieldDriver.C ElectricFieldDriver.H ProblemDomain.H	\
+	CollisionOperator.H Directions.H EMSolverBase.C EMSolverBase.H	\
+	FieldWriter.H Load.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H ParallelArray.H Particle.H PoissonF.H		\
+	PoissonSolver.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartManager.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H TimeHistWriter.H TimerManager.H	\
 	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_8 +=\
 	
@@ -109,12 +144,13 @@ DEPENDS_8 +=\
 
 ${FILE_8}: ${DEPENDS_8}
 
-FILE_9=ElectricFieldDriverFactory.o
+FILE_9=ElectricFieldDriver.o
 DEPENDS_9:=\
-	ElectricFieldDriver.H ElectricFieldDriverFactory.C		\
-	ElectricFieldDriverFactory.H ProblemDomain.H Serializable.H	\
-	ShapedRampedCosineDriver.H tbox/Box.H tbox/DescribedClass.H	\
-	tbox/Dimension.H tbox/IntVector.H
+	ElectricFieldDriver.C ElectricFieldDriver.H LokiInputParser.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_9 +=\
 	
@@ -122,10 +158,13 @@ DEPENDS_9 +=\
 
 ${FILE_9}: ${DEPENDS_9}
 
-FILE_10=ElectricPotentialDriver.o
+FILE_10=ElectricFieldDriverFactory.o
 DEPENDS_10:=\
-	ElectricPotentialDriver.C ElectricPotentialDriver.H		\
-	ProblemDomain.H tbox/Box.H tbox/DescribedClass.H		\
+	ElectricFieldDriver.H ElectricFieldDriverFactory.C		\
+	ElectricFieldDriverFactory.H LokiInputParser.H Loki_Defines.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	ShapedRampedCosineDriver.H tbox/Box.H tbox/DescribedClass.H	\
 	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_10 +=\
@@ -134,12 +173,13 @@ DEPENDS_10 +=\
 
 ${FILE_10}: ${DEPENDS_10}
 
-FILE_11=ElectricPotentialDriverFactory.o
+FILE_11=ElectricPotentialDriver.o
 DEPENDS_11:=\
-	ElectricPotentialDriver.H ElectricPotentialDriverFactory.C	\
-	ElectricPotentialDriverFactory.H ProblemDomain.H		\
-	ShapedRampedCosinePotentialDriver.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	ElectricPotentialDriver.C ElectricPotentialDriver.H		\
+	LokiInputParser.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_11 +=\
 	
@@ -147,9 +187,14 @@ DEPENDS_11 +=\
 
 ${FILE_11}: ${DEPENDS_11}
 
-FILE_12=ExpansionSchedule.o
+FILE_12=ElectricPotentialDriverFactory.o
 DEPENDS_12:=\
-	Directions.H ExpansionSchedule.C ExpansionSchedule.H tbox/Box.H
+	ElectricPotentialDriver.H ElectricPotentialDriverFactory.C	\
+	ElectricPotentialDriverFactory.H LokiInputParser.H		\
+	Loki_Defines.H ParallelArray.H ProblemDomain.H			\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H ShapedRampedCosinePotentialDriver.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_12 +=\
 	
@@ -157,12 +202,9 @@ DEPENDS_12 +=\
 
 ${FILE_12}: ${DEPENDS_12}
 
-FILE_13=External2DIC.o
+FILE_13=ElectronTZSourceF.o
 DEPENDS_13:=\
-	BoxOps.H Directions.H External2DIC.C External2DIC.H		\
-	External2DICF.H ICInterface.H Loki_Utilities.H ProblemDomain.H	\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H
+	ElectronTZSourceF.f
 
 DEPENDS_13 +=\
 	
@@ -170,9 +212,14 @@ DEPENDS_13 +=\
 
 ${FILE_13}: ${DEPENDS_13}
 
-FILE_14=External2DICF.o
+FILE_14=ElectronTrigTZSource.o
 DEPENDS_14:=\
-	External2DICF.f
+	ElectronTZSourceF.H ElectronTrigTZSource.C			\
+	ElectronTrigTZSource.H LokiInputParser.H Loki_Utilities.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	TZSourceInterface.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_14 +=\
 	
@@ -180,11 +227,14 @@ DEPENDS_14 +=\
 
 ${FILE_14}: ${DEPENDS_14}
 
-FILE_15=ICFactory.o
+FILE_15=ExpansionSchedule.o
 DEPENDS_15:=\
-	External2DIC.H ICFactory.C ICFactory.H ICInterface.H		\
-	PerturbedMaxwellianIC.H ProblemDomain.H tbox/Box.H		\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	Directions.H ExpansionSchedule.C ExpansionSchedule.H		\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	TimerManager.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_15 +=\
 	
@@ -192,10 +242,16 @@ DEPENDS_15 +=\
 
 ${FILE_15}: ${DEPENDS_15}
 
-FILE_16=ICInterface.o
+FILE_16=External2DIC.o
 DEPENDS_16:=\
-	ICInterface.C ICInterface.H ProblemDomain.H tbox/Box.H		\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	Directions.H External2DIC.C External2DIC.H ICInterface.H	\
+	JuttnerThermal.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H MaxwellianThermal.H ParallelArray.H		\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	Simulation.H System.H ThermalBehavior.H getMomentumF.H		\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_16 +=\
 	
@@ -203,10 +259,15 @@ DEPENDS_16 +=\
 
 ${FILE_16}: ${DEPENDS_16}
 
-FILE_17=IntegralOp.o
+FILE_17=External2VIC.o
 DEPENDS_17:=\
-	Directions.H IntegralOp.C IntegralOp.H ReductionOp.H SumOp.H	\
-	tbox/Box.H tbox/Dimension.H
+	Directions.H External2VIC.C External2VIC.H ICInterface.H	\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H System.H ThermalBehavior.H		\
+	getMomentumF.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_17 +=\
 	
@@ -214,11 +275,14 @@ DEPENDS_17 +=\
 
 ${FILE_17}: ${DEPENDS_17}
 
-FILE_18=KernelOp.o
+FILE_18=ExternalDistKrook.o
 DEPENDS_18:=\
-	KernelOp.C KernelOp.H Loki_Utilities.H ProblemDomain.H		\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H
+	Directions.H External2VIC.H ExternalDistKrook.C			\
+	ExternalDistKrook.H ICInterface.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H ProblemDomain.H	\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H ThermalBehavior.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_18 +=\
 	
@@ -226,21 +290,9 @@ DEPENDS_18 +=\
 
 ${FILE_18}: ${DEPENDS_18}
 
-FILE_19=KineticSpecies.o
+FILE_19=FieldReader.o
 DEPENDS_19:=\
-	BoxOps.H CollisionOperator.H CollisionOperatorFactory.H		\
-	ContractionSchedule.H CurrentDriver.H Directions.H		\
-	EMICInterface.H ElectricFieldDriver.H				\
-	ElectricFieldDriverFactory.H ExpansionSchedule.H ICFactory.H	\
-	ICInterface.H IntegralOp.H Interpolator.H KernelOp.H		\
-	KineticSpecies.C KineticSpecies.H KineticSpeciesF.H		\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H Loki_Utilities.H	\
-	Maxwell.H MaxwellF.H Particle.H Poisson.H ProblemDomain.H	\
-	Reduction.H ReductionOp.H ReductionSchedule.H RestartManager.H	\
-	Serializable.H SumOp.H SummationSchedule.H TZSourceFactory.H	\
-	TZSourceInterface.H TimerManager.H VELICInterface.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
-	tbox/Pointer.H
+	FieldReader.C FieldReader.H Loki_Defines.H ReaderWriterBase.H
 
 DEPENDS_19 +=\
 	
@@ -248,9 +300,13 @@ DEPENDS_19 +=\
 
 ${FILE_19}: ${DEPENDS_19}
 
-FILE_20=KineticSpeciesF.o
+FILE_20=FieldWriter.o
 DEPENDS_20:=\
-	KineticSpeciesF.f
+	Directions.H FieldWriter.C FieldWriter.H LokiInputParser.H	\
+	Loki_Defines.H ParallelArray.H ProblemDomain.H			\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_20 +=\
 	
@@ -258,17 +314,15 @@ DEPENDS_20 +=\
 
 ${FILE_20}: ${DEPENDS_20}
 
-FILE_21=KineticSpeciesPtrVect.o
+FILE_21=GaussianCurrentDriver.o
 DEPENDS_21:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H Directions.H	\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	KernelOp.H KineticSpecies.H KineticSpeciesF.H			\
-	KineticSpeciesPtrVect.C KineticSpeciesPtrVect.H KrookLayer.H	\
-	Load.H Loki_Utilities.H ProblemDomain.H Reduction.H		\
-	ReductionOp.H ReductionSchedule.H Serializable.H SumOp.H	\
-	SummationSchedule.H TZSourceInterface.H TimerManager.H		\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H tbox/Pointer.H
+	CurrentDriver.H GaussianCurrentDriver.C GaussianCurrentDriver.H	\
+	GaussianCurrentDriverF.H LokiInputParser.H Loki_Defines.H	\
+	Loki_Utilities.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H System.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_21 +=\
 	
@@ -276,11 +330,9 @@ DEPENDS_21 +=\
 
 ${FILE_21}: ${DEPENDS_21}
 
-FILE_22=KrookLayer.o
+FILE_22=GaussianCurrentDriverF.o
 DEPENDS_22:=\
-	Directions.H KrookLayer.C KrookLayer.H ProblemDomain.H		\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H
+	GaussianCurrentDriverF.f
 
 DEPENDS_22 +=\
 	
@@ -288,9 +340,20 @@ DEPENDS_22 +=\
 
 ${FILE_22}: ${DEPENDS_22}
 
-FILE_23=Load.o
+FILE_23=ICFactory.o
 DEPENDS_23:=\
-	Load.C Load.H
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	ElectricFieldDriver.H ExpansionSchedule.H External2DIC.H	\
+	External2VIC.H ExternalDistKrook.H ICFactory.C ICFactory.H	\
+	ICInterface.H InterpenetratingStreamIC.H KineticSpecies.H	\
+	KineticSpeciesF.H KrookLayer.H Load.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H			\
+	PerturbedMaxwellianIC.H ProblemDomain.H ReaderWriterBase.H	\
+	ReductionSchedule.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H SummationSchedule.H	\
+	System.H TZSourceInterface.H ThermalBehavior.H TimerManager.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_23 +=\
 	
@@ -298,9 +361,13 @@ DEPENDS_23 +=\
 
 ${FILE_23}: ${DEPENDS_23}
 
-FILE_24=LoadBalancer.o
+FILE_24=ICInterface.o
 DEPENDS_24:=\
-	Load.H LoadBalancer.C LoadBalancer.H
+	ICInterface.C ICInterface.H LokiInputParser.H ParallelArray.H	\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H ThermalBehavior.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_24 +=\
 	
@@ -308,11 +375,16 @@ DEPENDS_24 +=\
 
 ${FILE_24}: ${DEPENDS_24}
 
-FILE_25=Loki_Utilities.o
+FILE_25=InterpenetratingStreamIC.o
 DEPENDS_25:=\
-	BoxOps.H Directions.H Loki_Utilities.C Loki_Utilities.H		\
-	ProblemDomain.H tbox/Box.H tbox/DescribedClass.H		\
-	tbox/Dimension.H tbox/IntVector.H
+	Directions.H ICInterface.H InterpenetratingStreamIC.C		\
+	InterpenetratingStreamIC.H JuttnerThermal.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H MaxwellianThermal.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H System.H ThermalBehavior.H		\
+	getMomentumF.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_25 +=\
 	
@@ -320,19 +392,13 @@ DEPENDS_25 +=\
 
 ${FILE_25}: ${DEPENDS_25}
 
-FILE_26=Maxwell.o
+FILE_26=JuttnerThermal.o
 DEPENDS_26:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H		\
-	CurrentDriver.H CurrentDriverFactory.H Directions.H		\
-	EMICFactory.H EMICInterface.H ElectricFieldDriver.H		\
-	ExpansionSchedule.H ICInterface.H Interpolator.H Interpolator4.H\
-	Interpolator6.H KernelOp.H KineticSpecies.H KineticSpeciesF.H	\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H Loki_Utilities.H	\
-	Maxwell.C Maxwell.H MaxwellF.H Particle.H PoissonF.H		\
-	ProblemDomain.H Reduction.H ReductionOp.H ReductionSchedule.H	\
-	RestartManager.H Serializable.H SumOp.H SummationSchedule.H	\
-	TZSourceInterface.H TimerManager.H VELICFactory.H		\
-	VELICInterface.H tbox/Box.H tbox/DescribedClass.H		\
+	JuttnerThermal.C JuttnerThermal.H LokiInputParser.H		\
+	Loki_Defines.H ParallelArray.H ProblemDomain.H			\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H System.H		\
+	ThermalBehavior.H tbox/Box.H tbox/DescribedClass.H		\
 	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_26 +=\
@@ -341,9 +407,24 @@ DEPENDS_26 +=\
 
 ${FILE_26}: ${DEPENDS_26}
 
-FILE_27=MaxwellF.o
+FILE_27=KineticSpecies.o
 DEPENDS_27:=\
-	MaxwellF.f
+	CollisionOperator.H CollisionOperatorFactory.H			\
+	ContractionSchedule.H CurrentDriver.H Directions.H		\
+	EMICInterface.H EMSolverBase.H ElectricFieldDriver.H		\
+	ElectricFieldDriverFactory.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H FieldWriter.H ICFactory.H ICInterface.H	\
+	Interpolator.H KineticSpecies.C KineticSpecies.H		\
+	KineticSpeciesF.H KineticSpeciesPtrVect.H KrookLayer.H Load.H	\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H Maxwell.H	\
+	ParallelArray.H Particle.H Poisson.H PoissonSolver.H		\
+	ProblemDomain.H ReaderWriterBase.H ReductionSchedule.H		\
+	RestartManager.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H SummationSchedule.H	\
+	System.H TZSourceFactory.H TZSourceInterface.H ThermalBehavior.H\
+	TimerManager.H VELICInterface.H getVelocityF.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_27 +=\
 	
@@ -351,9 +432,9 @@ DEPENDS_27 +=\
 
 ${FILE_27}: ${DEPENDS_27}
 
-FILE_28=PETScEquationSolver.o
+FILE_28=KineticSpeciesF.o
 DEPENDS_28:=\
-	PETScEquationSolver.C
+	KineticSpeciesF.f
 
 DEPENDS_28 +=\
 	
@@ -361,9 +442,20 @@ DEPENDS_28 +=\
 
 ${FILE_28}: ${DEPENDS_28}
 
-FILE_29=PETScSolver.o
+FILE_29=KineticSpeciesPtrVect.o
 DEPENDS_29:=\
-	PETScSolver.C
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H ICInterface.H KineticSpecies.H		\
+	KineticSpeciesF.H KineticSpeciesPtrVect.C			\
+	KineticSpeciesPtrVect.H KrookLayer.H Load.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H ProblemDomain.H	\
+	ReaderWriterBase.H ReductionSchedule.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	Simulation.H SummationSchedule.H System.H TZSourceInterface.H	\
+	ThermalBehavior.H TimerManager.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_29 +=\
 	
@@ -371,9 +463,13 @@ DEPENDS_29 +=\
 
 ${FILE_29}: ${DEPENDS_29}
 
-FILE_30=Particle.o
+FILE_30=KrookLayer.o
 DEPENDS_30:=\
-	Particle.C Particle.H
+	Directions.H KrookLayer.C KrookLayer.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H ProblemDomain.H	\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_30 +=\
 	
@@ -381,9 +477,9 @@ DEPENDS_30 +=\
 
 ${FILE_30}: ${DEPENDS_30}
 
-FILE_31=PerlPreProcessor.o
+FILE_31=Load.o
 DEPENDS_31:=\
-	PerlPreProcessor.C PerlPreProcessor.H
+	Load.C Load.H
 
 DEPENDS_31 +=\
 	
@@ -391,12 +487,13 @@ DEPENDS_31 +=\
 
 ${FILE_31}: ${DEPENDS_31}
 
-FILE_32=PerturbedMaxwellianIC.o
+FILE_32=LoadBalancer.o
 DEPENDS_32:=\
-	BoxOps.H Directions.H ICInterface.H Loki_Utilities.H		\
-	PerturbedMaxwellianIC.C PerturbedMaxwellianIC.H			\
-	PerturbedMaxwellianICF.H ProblemDomain.H tbox/Box.H		\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	Load.H LoadBalancer.C LoadBalancer.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H ProblemDomain.H	\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_32 +=\
 	
@@ -404,9 +501,9 @@ DEPENDS_32 +=\
 
 ${FILE_32}: ${DEPENDS_32}
 
-FILE_33=PerturbedMaxwellianICF.o
+FILE_33=LokiInputParser.o
 DEPENDS_33:=\
-	PerturbedMaxwellianICF.f
+	LokiInputParser.C LokiInputParser.H Loki_Defines.H
 
 DEPENDS_33 +=\
 	
@@ -414,12 +511,9 @@ DEPENDS_33 +=\
 
 ${FILE_33}: ${DEPENDS_33}
 
-FILE_34=PitchAngleCollisionOperator.o
+FILE_34=LokiParser.o
 DEPENDS_34:=\
-	CollisionOperator.H PitchAngleCollisionOperator.C		\
-	PitchAngleCollisionOperator.H PitchAngleCollisionOperatorF.H	\
-	ProblemDomain.H tbox/Box.H tbox/DescribedClass.H		\
-	tbox/Dimension.H tbox/IntVector.H
+	LokiParser.C LokiParser.H
 
 DEPENDS_34 +=\
 	
@@ -427,9 +521,14 @@ DEPENDS_34 +=\
 
 ${FILE_34}: ${DEPENDS_34}
 
-FILE_35=PitchAngleCollisionOperatorF.o
+FILE_35=LokiPoissonSolveFFT.o
 DEPENDS_35:=\
-	PitchAngleCollisionOperatorF.f
+	Directions.H LokiInputParser.H LokiPoissonSolveFFT.C		\
+	LokiPoissonSolveFFT.H Loki_Utilities.H ParallelArray.H		\
+	PoissonSolver.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_35 +=\
 	
@@ -437,14 +536,14 @@ DEPENDS_35 +=\
 
 ${FILE_35}: ${DEPENDS_35}
 
-FILE_36=Poisson.o
+FILE_36=LokiPoissonSolveSuperLU.o
 DEPENDS_36:=\
-	BoxOps.H Directions.H ElectricPotentialDriver.H			\
-	ElectricPotentialDriverFactory.H Interpolator.H Interpolator4.H	\
-	Interpolator6.H Load.H Loki_Utilities.H Particle.H Poisson.C	\
-	Poisson.H PoissonF.H ProblemDomain.H RestartManager.H		\
-	Serializable.H TimerManager.H tbox/Box.H tbox/DescribedClass.H	\
-	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
+	Directions.H LokiInputParser.H LokiPoissonSolveSuperLU.C	\
+	LokiPoissonSolveSuperLU.H Loki_Utilities.H ParallelArray.H	\
+	PoissonSolver.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_36 +=\
 	
@@ -452,9 +551,13 @@ DEPENDS_36 +=\
 
 ${FILE_36}: ${DEPENDS_36}
 
-FILE_37=PoissonF.o
+FILE_37=Loki_Utilities.o
 DEPENDS_37:=\
-	PoissonF.f
+	LokiInputParser.H Loki_Utilities.C Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_37 +=\
 	
@@ -462,10 +565,23 @@ DEPENDS_37 +=\
 
 ${FILE_37}: ${DEPENDS_37}
 
-FILE_38=ProblemDomain.o
+FILE_38=Maxwell.o
 DEPENDS_38:=\
-	Directions.H ProblemDomain.C ProblemDomain.H tbox/Box.H		\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	CollisionOperator.H ContractionSchedule.H CurrentDriver.H	\
+	CurrentDriverFactory.H Directions.H EMICFactory.H		\
+	EMICInterface.H EMSolverBase.H ElectricFieldDriver.H		\
+	ExpansionSchedule.H External2VIC.H ExternalDistKrook.H		\
+	FieldWriter.H ICInterface.H Interpolator.H Interpolator4.H	\
+	Interpolator6.H KineticSpecies.H KineticSpeciesF.H		\
+	KineticSpeciesPtrVect.H KrookLayer.H Load.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H Maxwell.C Maxwell.H MaxwellF.H	\
+	ParallelArray.H Particle.H PoissonSolver.H ProblemDomain.H	\
+	ReaderWriterBase.H ReductionSchedule.H RestartManager.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H SummationSchedule.H System.H	\
+	TZSourceInterface.H ThermalBehavior.H TimerManager.H		\
+	VELICFactory.H VELICInterface.H tbox/Box.H tbox/DescribedClass.H\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_38 +=\
 	
@@ -473,11 +589,9 @@ DEPENDS_38 +=\
 
 ${FILE_38}: ${DEPENDS_38}
 
-FILE_39=Reduction.o
+FILE_39=MaxwellF.o
 DEPENDS_39:=\
-	BoxOps.H Directions.H KernelOp.H Reduction.C Reduction.H	\
-	ReductionOp.H tbox/Box.H tbox/Dimension.H tbox/IntVector.H	\
-	tbox/Pointer.H
+	MaxwellF.f
 
 DEPENDS_39 +=\
 	
@@ -485,9 +599,14 @@ DEPENDS_39 +=\
 
 ${FILE_39}: ${DEPENDS_39}
 
-FILE_40=ReductionOp.o
+FILE_40=MaxwellianThermal.o
 DEPENDS_40:=\
-	ReductionOp.C ReductionOp.H tbox/Box.H
+	LokiInputParser.H Loki_Defines.H MaxwellianThermal.C		\
+	MaxwellianThermal.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H System.H		\
+	ThermalBehavior.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_40 +=\
 	
@@ -495,11 +614,21 @@ DEPENDS_40 +=\
 
 ${FILE_40}: ${DEPENDS_40}
 
-FILE_41=ReductionSchedule.o
+FILE_41=OriginalRosenbluthCollisionOperator.o
 DEPENDS_41:=\
-	BoxOps.H Directions.H KernelOp.H Loki_Utilities.H		\
-	ProblemDomain.H Reduction.H ReductionOp.H ReductionSchedule.C	\
-	ReductionSchedule.H TimerManager.H tbox/Box.H			\
+	CollisionOperator.H CollisionOperatorF.H ContractionSchedule.H	\
+	Directions.H ElectricFieldDriver.H ExpansionSchedule.H		\
+	External2VIC.H ExternalDistKrook.H ICInterface.H		\
+	KineticSpecies.H KineticSpeciesF.H KrookLayer.H Load.H		\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	OriginalRosenbluthCollisionOperator.C				\
+	OriginalRosenbluthCollisionOperator.H				\
+	OriginalRosenbluthCollisionOperatorF.H ParallelArray.H		\
+	ProblemDomain.H ReaderWriterBase.H ReductionSchedule.H		\
+	ReductionSchedule4D.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H RosenbluthCollisionOperatorF.H Serializable.H	\
+	Simulation.H SummationSchedule.H System.H TZSourceInterface.H	\
+	ThermalBehavior.H TimerManager.H tbox/Box.H			\
 	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
 	tbox/Pointer.H
 
@@ -509,13 +638,9 @@ DEPENDS_41 +=\
 
 ${FILE_41}: ${DEPENDS_41}
 
-FILE_42=ReductionSchedule4D.o
+FILE_42=OriginalRosenbluthCollisionOperatorF.o
 DEPENDS_42:=\
-	BoxOps.H Directions.H KernelOp.H Loki_Utilities.H		\
-	ProblemDomain.H ReductionOp.H ReductionSchedule4D.C		\
-	ReductionSchedule4D.H TimerManager.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
-	tbox/Pointer.H
+	OriginalRosenbluthCollisionOperatorF.f
 
 DEPENDS_42 +=\
 	
@@ -523,11 +648,9 @@ DEPENDS_42 +=\
 
 ${FILE_42}: ${DEPENDS_42}
 
-FILE_43=RestartManager.o
+FILE_43=ParallelArray.o
 DEPENDS_43:=\
-	Loki_Utilities.H ProblemDomain.H RestartManager.C		\
-	RestartManager.H Serializable.H tbox/Box.H tbox/DescribedClass.H\
-	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
+	ParallelArray.C ParallelArray.H
 
 DEPENDS_43 +=\
 	
@@ -535,14 +658,14 @@ DEPENDS_43 +=\
 
 ${FILE_43}: ${DEPENDS_43}
 
-FILE_44=RosenbluthCollisionOperator.o
+FILE_44=Particle.o
 DEPENDS_44:=\
-	CollisionOperator.H Directions.H IntegralOp.H ProblemDomain.H	\
-	ReductionOp.H ReductionSchedule4D.H				\
-	RosenbluthCollisionOperator.C RosenbluthCollisionOperator.H	\
-	RosenbluthCollisionOperatorF.H SumOp.H tbox/Box.H		\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
-	tbox/Pointer.H
+	Directions.H LokiInputParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H Particle.C Particle.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartManager.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_44 +=\
 	
@@ -550,9 +673,13 @@ DEPENDS_44 +=\
 
 ${FILE_44}: ${DEPENDS_44}
 
-FILE_45=RosenbluthCollisionOperatorF.o
+FILE_45=PerlPreProcessor.o
 DEPENDS_45:=\
-	RosenbluthCollisionOperatorF.f
+	LokiInputParser.H LokiParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H PerlPreProcessor.C PerlPreProcessor.H		\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H tbox/Box.H		\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_45 +=\
 	
@@ -560,9 +687,16 @@ DEPENDS_45 +=\
 
 ${FILE_45}: ${DEPENDS_45}
 
-FILE_46=Serializable.o
+FILE_46=PerturbedMaxwellianIC.o
 DEPENDS_46:=\
-	Serializable.C Serializable.H
+	Directions.H ICInterface.H JuttnerThermal.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H MaxwellianThermal.H		\
+	ParallelArray.H PerturbedMaxwellianIC.C PerturbedMaxwellianIC.H	\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	Simulation.H System.H ThermalBehavior.H getMomentumF.H		\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_46 +=\
 	
@@ -570,13 +704,21 @@ DEPENDS_46 +=\
 
 ${FILE_46}: ${DEPENDS_46}
 
-FILE_47=ShapedRampedCosineCurrentDriver.o
+FILE_47=PitchAngleCollisionOperator.o
 DEPENDS_47:=\
-	CurrentDriver.H ProblemDomain.H					\
-	ShapedRampedCosineCurrentDriver.C				\
-	ShapedRampedCosineCurrentDriver.H				\
-	ShapedRampedCosineCurrentDriverF.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H ICInterface.H KineticSpecies.H		\
+	KineticSpeciesF.H KrookLayer.H Load.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H			\
+	PitchAngleCollisionOperator.C PitchAngleCollisionOperator.H	\
+	PitchAngleCollisionOperatorF.H ProblemDomain.H			\
+	ReaderWriterBase.H ReductionSchedule.H ReductionSchedule4D.H	\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H SummationSchedule.H System.H	\
+	TZSourceInterface.H ThermalBehavior.H TimerManager.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_47 +=\
 	
@@ -584,9 +726,9 @@ DEPENDS_47 +=\
 
 ${FILE_47}: ${DEPENDS_47}
 
-FILE_48=ShapedRampedCosineCurrentDriverF.o
+FILE_48=PitchAngleCollisionOperatorF.o
 DEPENDS_48:=\
-	ShapedRampedCosineCurrentDriverF.f
+	PitchAngleCollisionOperatorF.f
 
 DEPENDS_48 +=\
 	
@@ -594,13 +736,23 @@ DEPENDS_48 +=\
 
 ${FILE_48}: ${DEPENDS_48}
 
-FILE_49=ShapedRampedCosineDriver.o
+FILE_49=Poisson.o
 DEPENDS_49:=\
-	ElectricFieldDriver.H Loki_Utilities.H ProblemDomain.H		\
-	RestartManager.H Serializable.H ShapedRampedCosineDriver.C	\
-	ShapedRampedCosineDriver.H ShapedRampedCosineDriverF.H		\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H tbox/Pointer.H
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	EMSolverBase.H ElectricFieldDriver.H ElectricPotentialDriver.H	\
+	ElectricPotentialDriverFactory.H ExpansionSchedule.H		\
+	External2VIC.H ExternalDistKrook.H FieldWriter.H ICInterface.H	\
+	Interpolator.H Interpolator4.H Interpolator6.H KineticSpecies.H	\
+	KineticSpeciesF.H KineticSpeciesPtrVect.H KrookLayer.H Load.H	\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H Particle.H Poisson.C Poisson.H PoissonF.H	\
+	PoissonSolver.H PoissonSolverFactory.H ProblemDomain.H		\
+	ReaderWriterBase.H ReductionSchedule.H RestartManager.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H SummationSchedule.H System.H	\
+	TZSourceInterface.H ThermalBehavior.H TimerManager.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_49 +=\
 	
@@ -608,9 +760,9 @@ DEPENDS_49 +=\
 
 ${FILE_49}: ${DEPENDS_49}
 
-FILE_50=ShapedRampedCosineDriverF.o
+FILE_50=PoissonF.o
 DEPENDS_50:=\
-	ShapedRampedCosineDriverF.f
+	PoissonF.f
 
 DEPENDS_50 +=\
 	
@@ -618,13 +770,13 @@ DEPENDS_50 +=\
 
 ${FILE_50}: ${DEPENDS_50}
 
-FILE_51=ShapedRampedCosinePotentialDriver.o
+FILE_51=PoissonSolver.o
 DEPENDS_51:=\
-	ElectricPotentialDriver.H ProblemDomain.H			\
-	ShapedRampedCosinePotentialDriver.C				\
-	ShapedRampedCosinePotentialDriver.H				\
-	ShapedRampedCosinePotentialDriverF.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	LokiInputParser.H ParallelArray.H PoissonSolver.C		\
+	PoissonSolver.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_51 +=\
 	
@@ -632,9 +784,22 @@ DEPENDS_51 +=\
 
 ${FILE_51}: ${DEPENDS_51}
 
-FILE_52=ShapedRampedCosinePotentialDriverF.o
+FILE_52=PoissonSolverFactory.o
 DEPENDS_52:=\
-	ShapedRampedCosinePotentialDriverF.f
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	EMSolverBase.H ElectricFieldDriver.H ExpansionSchedule.H	\
+	External2VIC.H ExternalDistKrook.H FieldWriter.H ICInterface.H	\
+	Interpolator.H KineticSpecies.H KineticSpeciesF.H		\
+	KineticSpeciesPtrVect.H KrookLayer.H Load.H LokiInputParser.H	\
+	LokiPoissonSolveFFT.H LokiPoissonSolveSuperLU.H Loki_Defines.H	\
+	Loki_Utilities.H ParallelArray.H Particle.H Poisson.H		\
+	PoissonSolver.H PoissonSolverFactory.C PoissonSolverFactory.H	\
+	ProblemDomain.H ReaderWriterBase.H ReductionSchedule.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H SummationSchedule.H System.H	\
+	TZSourceInterface.H ThermalBehavior.H TimerManager.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_52 +=\
 	
@@ -642,11 +807,13 @@ DEPENDS_52 +=\
 
 ${FILE_52}: ${DEPENDS_52}
 
-FILE_53=SimpleEMIC.o
+FILE_53=ProblemDomain.o
 DEPENDS_53:=\
-	BoxOps.H Directions.H EMICInterface.H ProblemDomain.H		\
-	SimpleEMIC.C SimpleEMIC.H SimpleEMICF.H tbox/Box.H		\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	Directions.H LokiInputParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H ProblemDomain.C ProblemDomain.H			\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_53 +=\
 	
@@ -654,9 +821,9 @@ DEPENDS_53 +=\
 
 ${FILE_53}: ${DEPENDS_53}
 
-FILE_54=SimpleEMICF.o
+FILE_54=ReaderWriterBase.o
 DEPENDS_54:=\
-	SimpleEMICF.f
+	Loki_Defines.H ReaderWriterBase.C ReaderWriterBase.H
 
 DEPENDS_54 +=\
 	
@@ -664,11 +831,14 @@ DEPENDS_54 +=\
 
 ${FILE_54}: ${DEPENDS_54}
 
-FILE_55=SimpleVELIC.o
+FILE_55=ReductionSchedule.o
 DEPENDS_55:=\
-	BoxOps.H Directions.H ProblemDomain.H SimpleVELIC.C		\
-	SimpleVELIC.H SimpleVELICF.H VELICInterface.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	Directions.H LokiInputParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	ReductionSchedule.C ReductionSchedule.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H TimerManager.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_55 +=\
 	
@@ -676,9 +846,14 @@ DEPENDS_55 +=\
 
 ${FILE_55}: ${DEPENDS_55}
 
-FILE_56=SimpleVELICF.o
+FILE_56=ReductionSchedule4D.o
 DEPENDS_56:=\
-	SimpleVELICF.f
+	Directions.H LokiInputParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	ReductionSchedule4D.C ReductionSchedule4D.H RestartReader.H	\
+	RestartReaderWriterBase.H RestartWriter.H TimerManager.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_56 +=\
 	
@@ -686,20 +861,14 @@ DEPENDS_56 +=\
 
 ${FILE_56}: ${DEPENDS_56}
 
-FILE_57=Simulation.o
+FILE_57=RestartManager.o
 DEPENDS_57:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H		\
-	CurrentDriver.H Directions.H EMICInterface.H			\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	Interpolator.H KernelOp.H KineticSpecies.H KineticSpeciesF.H	\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H Loki_Utilities.H	\
-	Maxwell.H MaxwellF.H ODEInterface.H Particle.H Poisson.H	\
-	ProblemDomain.H RKIntegrator.H Reduction.H ReductionOp.H	\
-	ReductionSchedule.H RestartManager.H Serializable.H Simulation.C\
-	Simulation.H SumOp.H SummationSchedule.H System.H		\
-	TZSourceInterface.H TimerManager.H VELICInterface.H VMState.H	\
-	VMSystem.H VPState.H VPSystem.H tbox/Box.H tbox/DescribedClass.H\
-	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartManager.C RestartManager.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_57 +=\
 	
@@ -707,10 +876,12 @@ DEPENDS_57 +=\
 
 ${FILE_57}: ${DEPENDS_57}
 
-FILE_58=SumOp.o
+FILE_58=RestartReader.o
 DEPENDS_58:=\
-	BoxOps.H Directions.H Loki_Utilities.H ProblemDomain.H		\
-	ReductionOp.H SumOp.C SumOp.H tbox/Box.H tbox/DescribedClass.H	\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.C RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
 	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_58 +=\
@@ -719,13 +890,13 @@ DEPENDS_58 +=\
 
 ${FILE_58}: ${DEPENDS_58}
 
-FILE_59=SummationSchedule.o
+FILE_59=RestartReaderWriterBase.o
 DEPENDS_59:=\
-	BoxOps.H Directions.H KernelOp.H Loki_Utilities.H		\
-	ProblemDomain.H ReductionOp.H SummationSchedule.C		\
-	SummationSchedule.H TimerManager.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
-	tbox/Pointer.H
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.C			\
+	RestartReaderWriterBase.H RestartWriter.H tbox/Box.H		\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_59 +=\
 	
@@ -733,9 +904,13 @@ DEPENDS_59 +=\
 
 ${FILE_59}: ${DEPENDS_59}
 
-FILE_60=System.o
+FILE_60=RestartWriter.o
 DEPENDS_60:=\
-	System.C System.H
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.C	\
+	RestartWriter.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_60 +=\
 	
@@ -743,9 +918,21 @@ DEPENDS_60 +=\
 
 ${FILE_60}: ${DEPENDS_60}
 
-FILE_61=TZSourceF.o
+FILE_61=RosenbluthCollisionOperator.o
 DEPENDS_61:=\
-	TZSourceF.f
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H ICInterface.H KineticSpecies.H		\
+	KineticSpeciesF.H KrookLayer.H Load.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H ProblemDomain.H	\
+	ReaderWriterBase.H ReductionSchedule.H ReductionSchedule4D.H	\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	RosenbluthCollisionOperator.C RosenbluthCollisionOperator.H	\
+	RosenbluthCollisionOperatorF.H Serializable.H Simulation.H	\
+	SummationSchedule.H System.H TZSourceInterface.H		\
+	ThermalBehavior.H TimerManager.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
 
 DEPENDS_61 +=\
 	
@@ -753,11 +940,9 @@ DEPENDS_61 +=\
 
 ${FILE_61}: ${DEPENDS_61}
 
-FILE_62=TZSourceFactory.o
+FILE_62=RosenbluthCollisionOperatorF.o
 DEPENDS_62:=\
-	ProblemDomain.H TZSourceFactory.C TZSourceFactory.H		\
-	TZSourceInterface.H TrigTZSource.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	RosenbluthCollisionOperatorF.f
 
 DEPENDS_62 +=\
 	
@@ -765,11 +950,11 @@ DEPENDS_62 +=\
 
 ${FILE_62}: ${DEPENDS_62}
 
-FILE_63=TZSourceInterface.o
+FILE_63=Serializable.o
 DEPENDS_63:=\
-	ProblemDomain.H TZSourceInterface.C TZSourceInterface.H		\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H
+	ParallelArray.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.C	\
+	Serializable.H tbox/Box.H
 
 DEPENDS_63 +=\
 	
@@ -777,9 +962,15 @@ DEPENDS_63 +=\
 
 ${FILE_63}: ${DEPENDS_63}
 
-FILE_64=TimerManager.o
+FILE_64=ShapedRampedCosineCurrentDriver.o
 DEPENDS_64:=\
-	TimerManager.C TimerManager.H tbox/Pointer.H
+	CurrentDriver.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H ShapedRampedCosineCurrentDriver.C		\
+	ShapedRampedCosineCurrentDriver.H				\
+	ShapedRampedCosineCurrentDriverF.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_64 +=\
 	
@@ -787,11 +978,9 @@ DEPENDS_64 +=\
 
 ${FILE_64}: ${DEPENDS_64}
 
-FILE_65=TrigTZSource.o
+FILE_65=ShapedRampedCosineCurrentDriverF.o
 DEPENDS_65:=\
-	BoxOps.H Directions.H ProblemDomain.H TZSourceF.H		\
-	TZSourceInterface.H TrigTZSource.C TrigTZSource.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	ShapedRampedCosineCurrentDriverF.f
 
 DEPENDS_65 +=\
 	
@@ -799,11 +988,15 @@ DEPENDS_65 +=\
 
 ${FILE_65}: ${DEPENDS_65}
 
-FILE_66=VELICFactory.o
+FILE_66=ShapedRampedCosineDriver.o
 DEPENDS_66:=\
-	ProblemDomain.H SimpleVELIC.H VELICFactory.C VELICFactory.H	\
-	VELICInterface.H tbox/Box.H tbox/DescribedClass.H		\
-	tbox/Dimension.H tbox/IntVector.H
+	ElectricFieldDriver.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H ShapedRampedCosineDriver.C			\
+	ShapedRampedCosineDriver.H ShapedRampedCosineDriverF.H		\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
 
 DEPENDS_66 +=\
 	
@@ -811,10 +1004,9 @@ DEPENDS_66 +=\
 
 ${FILE_66}: ${DEPENDS_66}
 
-FILE_67=VELICInterface.o
+FILE_67=ShapedRampedCosineDriverF.o
 DEPENDS_67:=\
-	ProblemDomain.H VELICInterface.C VELICInterface.H tbox/Box.H	\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+	ShapedRampedCosineDriverF.f
 
 DEPENDS_67 +=\
 	
@@ -822,19 +1014,15 @@ DEPENDS_67 +=\
 
 ${FILE_67}: ${DEPENDS_67}
 
-FILE_68=VMState.o
+FILE_68=ShapedRampedCosinePotentialDriver.o
 DEPENDS_68:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H		\
-	CurrentDriver.H Directions.H EMICInterface.H			\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	Interpolator.H KernelOp.H KineticSpecies.H KineticSpeciesF.H	\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H Loki_Utilities.H	\
-	Maxwell.H MaxwellF.H Particle.H ProblemDomain.H Reduction.H	\
-	ReductionOp.H ReductionSchedule.H Serializable.H SumOp.H	\
-	SummationSchedule.H TZSourceInterface.H TimerManager.H		\
-	VELICInterface.H VMState.C VMState.H tbox/Box.H			\
-	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
-	tbox/Pointer.H
+	ElectricPotentialDriver.H LokiInputParser.H Loki_Defines.H	\
+	Loki_Utilities.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H ShapedRampedCosinePotentialDriver.C		\
+	ShapedRampedCosinePotentialDriver.H				\
+	ShapedRampedCosinePotentialDriverF.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_68 +=\
 	
@@ -842,21 +1030,9 @@ DEPENDS_68 +=\
 
 ${FILE_68}: ${DEPENDS_68}
 
-FILE_69=VMSystem.o
+FILE_69=ShapedRampedCosinePotentialDriverF.o
 DEPENDS_69:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H		\
-	CurrentDriver.H Directions.H EMICInterface.H			\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	Interpolator.H KernelOp.H KineticSpecies.H KineticSpeciesF.H	\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H LoadBalancer.H	\
-	Loki_Utilities.H Maxwell.H MaxwellF.H ODEInterface.H Particle.H	\
-	ProblemDomain.H RK4Integrator.H RK6Integrator.H RKIntegrator.H	\
-	Reduction.H ReductionOp.H ReductionSchedule.H RestartManager.H	\
-	Serializable.H SumOp.H SummationSchedule.H System.H		\
-	TZSourceInterface.H TimerManager.H VELICInterface.H VMState.H	\
-	VMSystem.C VMSystem.H tbox/Box.H tbox/DescribedClass.H		\
-	tbox/Dimension.H tbox/IntVector.H tbox/MathUtilities.H		\
-	tbox/Pointer.H
+	ShapedRampedCosinePotentialDriverF.f
 
 DEPENDS_69 +=\
 	
@@ -864,17 +1040,13 @@ DEPENDS_69 +=\
 
 ${FILE_69}: ${DEPENDS_69}
 
-FILE_70=VPState.o
+FILE_70=SimpleEMIC.o
 DEPENDS_70:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H Directions.H	\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	Interpolator.H KernelOp.H KineticSpecies.H KineticSpeciesF.H	\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H Loki_Utilities.H	\
-	Particle.H Poisson.H ProblemDomain.H Reduction.H ReductionOp.H	\
-	ReductionSchedule.H Serializable.H SumOp.H SummationSchedule.H	\
-	TZSourceInterface.H TimerManager.H VPState.C VPState.H		\
-	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
-	tbox/IntVector.H tbox/Pointer.H
+	EMICInterface.H LokiInputParser.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	SimpleEMIC.C SimpleEMIC.H SimpleEMICF.H tbox/Box.H		\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_70 +=\
 	
@@ -882,19 +1054,9 @@ DEPENDS_70 +=\
 
 ${FILE_70}: ${DEPENDS_70}
 
-FILE_71=VPSystem.o
+FILE_71=SimpleEMICF.o
 DEPENDS_71:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H Directions.H	\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	Interpolator.H KernelOp.H KineticSpecies.H KineticSpeciesF.H	\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H LoadBalancer.H	\
-	Loki_Utilities.H ODEInterface.H Particle.H Poisson.H		\
-	ProblemDomain.H RK4Integrator.H RK6Integrator.H RKIntegrator.H	\
-	Reduction.H ReductionOp.H ReductionSchedule.H RestartManager.H	\
-	Serializable.H SumOp.H SummationSchedule.H System.H		\
-	TZSourceInterface.H TimerManager.H VPState.H VPSystem.C		\
-	VPSystem.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H	\
-	tbox/IntVector.H tbox/MathUtilities.H tbox/Pointer.H
+	SimpleEMICF.f
 
 DEPENDS_71 +=\
 	
@@ -902,9 +1064,13 @@ DEPENDS_71 +=\
 
 ${FILE_71}: ${DEPENDS_71}
 
-FILE_72=centAvg_to_faceAvg4D.o
+FILE_72=SimpleVELIC.o
 DEPENDS_72:=\
-	centAvg_to_faceAvg4D.f
+	LokiInputParser.H Loki_Utilities.H ParallelArray.H		\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H SimpleVELIC.C		\
+	SimpleVELIC.H SimpleVELICF.H VELICInterface.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
 
 DEPENDS_72 +=\
 	
@@ -912,9 +1078,9 @@ DEPENDS_72 +=\
 
 ${FILE_72}: ${DEPENDS_72}
 
-FILE_73=datamove.o
+FILE_73=SimpleVELICF.o
 DEPENDS_73:=\
-	datamove.c
+	SimpleVELICF.f
 
 DEPENDS_73 +=\
 	
@@ -922,9 +1088,23 @@ DEPENDS_73 +=\
 
 ${FILE_73}: ${DEPENDS_73}
 
-FILE_74=erfwrap.o
+FILE_74=Simulation.o
 DEPENDS_74:=\
-	erfwrap.c
+	CollisionOperator.H ContractionSchedule.H CurrentDriver.H	\
+	Directions.H EMICInterface.H EMSolverBase.H			\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H FieldWriter.H ICInterface.H Interpolator.H	\
+	KineticSpecies.H KineticSpeciesF.H KineticSpeciesPtrVect.H	\
+	KrookLayer.H Load.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H Maxwell.H ODEInterface.H ParallelArray.H	\
+	Particle.H Poisson.H PoissonSolver.H ProblemDomain.H		\
+	RKIntegrator.H ReaderWriterBase.H ReductionSchedule.H		\
+	RestartManager.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.C Simulation.H	\
+	SummationSchedule.H System.H TZSourceInterface.H		\
+	ThermalBehavior.H TimerManager.H VELICInterface.H VMState.H	\
+	VMSystem.H VPState.H VPSystem.H tbox/Box.H tbox/DescribedClass.H\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_74 +=\
 	
@@ -932,10 +1112,14 @@ DEPENDS_74 +=\
 
 ${FILE_74}: ${DEPENDS_74}
 
-FILE_75=main.o
+FILE_75=SummationSchedule.o
 DEPENDS_75:=\
-	PerlPreProcessor.H RestartManager.H Serializable.H Simulation.H	\
-	System.H TimerManager.H main.C tbox/Box.H tbox/Pointer.H
+	Directions.H LokiInputParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	SummationSchedule.C SummationSchedule.H TimerManager.H		\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_75 +=\
 	
@@ -943,9 +1127,19 @@ DEPENDS_75 +=\
 
 ${FILE_75}: ${DEPENDS_75}
 
-FILE_76=testDist.o
+FILE_76=System.o
 DEPENDS_76:=\
-	PerlPreProcessor.H testDist.C
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H ICInterface.H KineticSpecies.H		\
+	KineticSpeciesF.H KineticSpeciesPtrVect.H KrookLayer.H Load.H	\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	ReductionSchedule.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H SummationSchedule.H	\
+	System.C System.H TZSourceInterface.H ThermalBehavior.H		\
+	TimerManager.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H\
+	tbox/IntVector.H tbox/Pointer.H
 
 DEPENDS_76 +=\
 	
@@ -953,20 +1147,401 @@ DEPENDS_76 +=\
 
 ${FILE_76}: ${DEPENDS_76}
 
-FILE_77=vp4DPostProcess.o
+FILE_77=TZSourceF.o
 DEPENDS_77:=\
-	BoxOps.H CollisionOperator.H ContractionSchedule.H Directions.H	\
-	ElectricFieldDriver.H ExpansionSchedule.H ICInterface.H		\
-	KernelOp.H KineticSpecies.H KineticSpeciesF.H			\
-	KineticSpeciesPtrVect.H KrookLayer.H Load.H Loki_Utilities.H	\
-	ProblemDomain.H Reduction.H ReductionOp.H ReductionSchedule.H	\
-	Serializable.H SumOp.H SummationSchedule.H TZSourceInterface.H	\
-	TimerManager.H tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H\
-	tbox/IntVector.H tbox/Pointer.H vp4DPostProcess.C
+	TZSourceF.f
 
 DEPENDS_77 +=\
 	
 
 
 ${FILE_77}: ${DEPENDS_77}
+
+FILE_78=TZSourceFactory.o
+DEPENDS_78:=\
+	ElectronTrigTZSource.H LokiInputParser.H Loki_Defines.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	TZSourceFactory.C TZSourceFactory.H TZSourceInterface.H		\
+	TrigTZSource.H TwoSpecies_ElectronTrigTZSource.H		\
+	TwoSpecies_IonTrigTZSource.H tbox/Box.H tbox/DescribedClass.H	\
+	tbox/Dimension.H tbox/IntVector.H
+
+DEPENDS_78 +=\
+	
+
+
+${FILE_78}: ${DEPENDS_78}
+
+FILE_79=TZSourceInterface.o
+DEPENDS_79:=\
+	LokiInputParser.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H TZSourceInterface.C TZSourceInterface.H		\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H
+
+DEPENDS_79 +=\
+	
+
+
+${FILE_79}: ${DEPENDS_79}
+
+FILE_80=ThermalBehavior.o
+DEPENDS_80:=\
+	LokiInputParser.H Loki_Defines.H ParallelArray.H ProblemDomain.H\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H System.H		\
+	ThermalBehavior.C ThermalBehavior.H getMomentumF.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
+
+DEPENDS_80 +=\
+	
+
+
+${FILE_80}: ${DEPENDS_80}
+
+FILE_81=TimeHistReader.o
+DEPENDS_81:=\
+	ReaderWriterBase.H TimeHistReader.C TimeHistReader.H
+
+DEPENDS_81 +=\
+	
+
+
+${FILE_81}: ${DEPENDS_81}
+
+FILE_82=TimeHistWriter.o
+DEPENDS_82:=\
+	Loki_Defines.H ReaderWriterBase.H TimeHistWriter.C		\
+	TimeHistWriter.H
+
+DEPENDS_82 +=\
+	
+
+
+${FILE_82}: ${DEPENDS_82}
+
+FILE_83=TimerManager.o
+DEPENDS_83:=\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H		\
+	ParallelArray.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	TimerManager.C TimerManager.H tbox/Box.H tbox/DescribedClass.H	\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
+
+DEPENDS_83 +=\
+	
+
+
+${FILE_83}: ${DEPENDS_83}
+
+FILE_84=TrigTZSource.o
+DEPENDS_84:=\
+	LokiInputParser.H Loki_Utilities.H ParallelArray.H		\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H TZSourceF.H		\
+	TZSourceInterface.H TrigTZSource.C TrigTZSource.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+
+DEPENDS_84 +=\
+	
+
+
+${FILE_84}: ${DEPENDS_84}
+
+FILE_85=TwoSpecies_ElectronTZSourceF.o
+DEPENDS_85:=\
+	TwoSpecies_ElectronTZSourceF.f
+
+DEPENDS_85 +=\
+	
+
+
+${FILE_85}: ${DEPENDS_85}
+
+FILE_86=TwoSpecies_ElectronTrigTZSource.o
+DEPENDS_86:=\
+	LokiInputParser.H Loki_Utilities.H ParallelArray.H		\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H TZSourceInterface.H	\
+	TwoSpecies_ElectronTZSourceF.H TwoSpecies_ElectronTrigTZSource.C\
+	TwoSpecies_ElectronTrigTZSource.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+
+DEPENDS_86 +=\
+	
+
+
+${FILE_86}: ${DEPENDS_86}
+
+FILE_87=TwoSpecies_IonTZSourceF.o
+DEPENDS_87:=\
+	TwoSpecies_IonTZSourceF.f
+
+DEPENDS_87 +=\
+	
+
+
+${FILE_87}: ${DEPENDS_87}
+
+FILE_88=TwoSpecies_IonTrigTZSource.o
+DEPENDS_88:=\
+	LokiInputParser.H Loki_Utilities.H ParallelArray.H		\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H TZSourceInterface.H	\
+	TwoSpecies_IonTZSourceF.H TwoSpecies_IonTrigTZSource.C		\
+	TwoSpecies_IonTrigTZSource.H tbox/Box.H tbox/DescribedClass.H	\
+	tbox/Dimension.H tbox/IntVector.H
+
+DEPENDS_88 +=\
+	
+
+
+${FILE_88}: ${DEPENDS_88}
+
+FILE_89=UnidirectionalCurrentDriver.o
+DEPENDS_89:=\
+	CurrentDriver.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H System.H		\
+	UnidirectionalCurrentDriver.C UnidirectionalCurrentDriver.H	\
+	UnidirectionalCurrentDriverF.H tbox/Box.H tbox/DescribedClass.H	\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
+
+DEPENDS_89 +=\
+	
+
+
+${FILE_89}: ${DEPENDS_89}
+
+FILE_90=UnidirectionalCurrentDriverF.o
+DEPENDS_90:=\
+	UnidirectionalCurrentDriverF.f
+
+DEPENDS_90 +=\
+	
+
+
+${FILE_90}: ${DEPENDS_90}
+
+FILE_91=VELICFactory.o
+DEPENDS_91:=\
+	LokiInputParser.H Loki_Defines.H ParallelArray.H ProblemDomain.H\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H SimpleVELIC.H VELICFactory.C VELICFactory.H	\
+	VELICInterface.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H
+
+DEPENDS_91 +=\
+	
+
+
+${FILE_91}: ${DEPENDS_91}
+
+FILE_92=VELICInterface.o
+DEPENDS_92:=\
+	LokiInputParser.H ParallelArray.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H VELICInterface.C VELICInterface.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H
+
+DEPENDS_92 +=\
+	
+
+
+${FILE_92}: ${DEPENDS_92}
+
+FILE_93=VMState.o
+DEPENDS_93:=\
+	CollisionOperator.H ContractionSchedule.H CurrentDriver.H	\
+	Directions.H EMICInterface.H EMSolverBase.H			\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H FieldWriter.H ICInterface.H Interpolator.H	\
+	KineticSpecies.H KineticSpeciesF.H KineticSpeciesPtrVect.H	\
+	KrookLayer.H Load.H LokiInputParser.H Loki_Defines.H		\
+	Loki_Utilities.H Maxwell.H ParallelArray.H Particle.H		\
+	PoissonSolver.H ProblemDomain.H ReaderWriterBase.H		\
+	ReductionSchedule.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H SummationSchedule.H	\
+	System.H TZSourceInterface.H ThermalBehavior.H TimerManager.H	\
+	VELICInterface.H VMState.C VMState.H tbox/Box.H			\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
+
+DEPENDS_93 +=\
+	
+
+
+${FILE_93}: ${DEPENDS_93}
+
+FILE_94=VMSystem.o
+DEPENDS_94:=\
+	CollisionOperator.H ContractionSchedule.H CurrentDriver.H	\
+	Directions.H EMICInterface.H EMSolverBase.H			\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H FieldWriter.H ICInterface.H Interpolator.H	\
+	KineticSpecies.H KineticSpeciesF.H KineticSpeciesPtrVect.H	\
+	KrookLayer.H Load.H LoadBalancer.H LokiInputParser.H		\
+	Loki_Defines.H Loki_Utilities.H Maxwell.H ODEInterface.H	\
+	ParallelArray.H Particle.H PoissonSolver.H ProblemDomain.H	\
+	RK4Integrator.H RK6Integrator.H RKIntegrator.H			\
+	ReaderWriterBase.H ReductionSchedule.H RestartManager.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H SummationSchedule.H System.H	\
+	TZSourceInterface.H ThermalBehavior.H TimerManager.H		\
+	VELICInterface.H VMState.H VMSystem.C VMSystem.H tbox/Box.H	\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/MathUtilities.H tbox/Pointer.H
+
+DEPENDS_94 +=\
+	
+
+
+${FILE_94}: ${DEPENDS_94}
+
+FILE_95=VPState.o
+DEPENDS_95:=\
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	EMSolverBase.H ElectricFieldDriver.H ExpansionSchedule.H	\
+	External2VIC.H ExternalDistKrook.H FieldWriter.H ICInterface.H	\
+	Interpolator.H KineticSpecies.H KineticSpeciesF.H		\
+	KineticSpeciesPtrVect.H KrookLayer.H Load.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H ParallelArray.H Particle.H	\
+	Poisson.H PoissonSolver.H ProblemDomain.H ReaderWriterBase.H	\
+	ReductionSchedule.H RestartReader.H RestartReaderWriterBase.H	\
+	RestartWriter.H Serializable.H Simulation.H SummationSchedule.H	\
+	System.H TZSourceInterface.H ThermalBehavior.H TimerManager.H	\
+	VPState.C VPState.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H
+
+DEPENDS_95 +=\
+	
+
+
+${FILE_95}: ${DEPENDS_95}
+
+FILE_96=VPSystem.o
+DEPENDS_96:=\
+	CollisionOperator.H ContractionSchedule.H Directions.H		\
+	EMSolverBase.H ElectricFieldDriver.H ExpansionSchedule.H	\
+	External2VIC.H ExternalDistKrook.H FieldWriter.H ICInterface.H	\
+	Interpolator.H KineticSpecies.H KineticSpeciesF.H		\
+	KineticSpeciesPtrVect.H KrookLayer.H Load.H LoadBalancer.H	\
+	LokiInputParser.H Loki_Defines.H Loki_Utilities.H ODEInterface.H\
+	ParallelArray.H Particle.H Poisson.H PoissonSolver.H		\
+	ProblemDomain.H RK4Integrator.H RK6Integrator.H RKIntegrator.H	\
+	ReaderWriterBase.H ReductionSchedule.H RestartManager.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	Serializable.H Simulation.H SummationSchedule.H System.H	\
+	TZSourceInterface.H ThermalBehavior.H TimerManager.H VPState.H	\
+	VPSystem.C VPSystem.H tbox/Box.H tbox/DescribedClass.H		\
+	tbox/Dimension.H tbox/IntVector.H tbox/MathUtilities.H		\
+	tbox/Pointer.H
+
+DEPENDS_96 +=\
+	
+
+
+${FILE_96}: ${DEPENDS_96}
+
+FILE_97=centAvg_to_faceAvg4D.o
+DEPENDS_97:=\
+	centAvg_to_faceAvg4D.f
+
+DEPENDS_97 +=\
+	
+
+
+${FILE_97}: ${DEPENDS_97}
+
+FILE_98=checkTests.o
+DEPENDS_98:=\
+	FieldReader.H LokiInputParser.H Loki_Utilities.H ParallelArray.H\
+	ProblemDomain.H ReaderWriterBase.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H TimeHistReader.H	\
+	checkTests.C tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H	\
+	tbox/IntVector.H
+
+DEPENDS_98 +=\
+	
+
+
+${FILE_98}: ${DEPENDS_98}
+
+FILE_99=getMomentumF.o
+DEPENDS_99:=\
+	getMomentumF.f
+
+DEPENDS_99 +=\
+	
+
+
+${FILE_99}: ${DEPENDS_99}
+
+FILE_100=getVelocityF.o
+DEPENDS_100:=\
+	getVelocityF.f
+
+DEPENDS_100 +=\
+	
+
+
+${FILE_100}: ${DEPENDS_100}
+
+FILE_101=main.o
+DEPENDS_101:=\
+	LokiInputParser.H LokiParser.H Loki_Defines.H Loki_Utilities.H	\
+	ParallelArray.H PerlPreProcessor.H ProblemDomain.H		\
+	ReaderWriterBase.H RestartManager.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	Simulation.H System.H TimerManager.H main.C tbox/Box.H		\
+	tbox/DescribedClass.H tbox/Dimension.H tbox/IntVector.H		\
+	tbox/Pointer.H
+
+DEPENDS_101 +=\
+	
+
+
+${FILE_101}: ${DEPENDS_101}
+
+FILE_102=testDist.o
+DEPENDS_102:=\
+	LokiInputParser.H LokiParser.H Loki_Utilities.H ParallelArray.H	\
+	PerlPreProcessor.H ProblemDomain.H ReaderWriterBase.H		\
+	RestartReader.H RestartReaderWriterBase.H RestartWriter.H	\
+	tbox/Box.H tbox/DescribedClass.H tbox/Dimension.H		\
+	tbox/IntVector.H testDist.C
+
+DEPENDS_102 +=\
+	
+
+
+${FILE_102}: ${DEPENDS_102}
+
+FILE_103=vp4DPostProcess.o
+DEPENDS_103:=\
+	CollisionOperator.H ContractionSchedule.H CurrentDriver.H	\
+	Directions.H EMICInterface.H EMSolverBase.H			\
+	ElectricFieldDriver.H ExpansionSchedule.H External2VIC.H	\
+	ExternalDistKrook.H FieldReader.H FieldWriter.H ICInterface.H	\
+	Interpolator.H KineticSpecies.H KineticSpeciesF.H		\
+	KineticSpeciesPtrVect.H KrookLayer.H Load.H LokiInputParser.H	\
+	Loki_Defines.H Loki_Utilities.H Maxwell.H ParallelArray.H	\
+	Particle.H Poisson.H PoissonSolver.H ProblemDomain.H		\
+	ReaderWriterBase.H ReductionSchedule.H RestartReader.H		\
+	RestartReaderWriterBase.H RestartWriter.H Serializable.H	\
+	Simulation.H SummationSchedule.H System.H TZSourceInterface.H	\
+	ThermalBehavior.H TimeHistReader.H TimeHistWriter.H		\
+	TimerManager.H VELICInterface.H tbox/Box.H tbox/DescribedClass.H\
+	tbox/Dimension.H tbox/IntVector.H tbox/Pointer.H		\
+	vp4DPostProcess.C
+
+DEPENDS_103 +=\
+	
+
+
+${FILE_103}: ${DEPENDS_103}
 

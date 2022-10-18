@@ -1,38 +1,10 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "VPSystem.H"
@@ -41,58 +13,34 @@
 
 #include "tbox/MathUtilities.H"
 #include "LoadBalancer.H"
+#include "Loki_Defines.H"
 #include "TimerManager.H"
-#include "ParallelUtility.h"
 #include "RestartManager.H"
 #include "RK4Integrator.H"
 #include "RK6Integrator.H"
 
 namespace Loki {
-
-static const bool SKIP_DEEP_COPY = false;
-
+  
 VPSystem::VPSystem(
-   ParmParse& a_pp,
+   LokiInputParser& a_pp,
    int a_num_probes,
    int a_spatial_solution_order,
-   int a_temporal_solution_order)
-   : m_cdim(CDIM),
-     m_pdim(PDIM),
-     m_cfg_domain(new ProblemDomain(m_cdim, a_spatial_solution_order, a_pp)),
-     m_length_seq(8),
-     m_spatial_solution_order(a_spatial_solution_order),
-     m_temporal_solution_order(a_temporal_solution_order)
+   int a_temporal_solution_order,
+   bool a_coll_diag_on)
+   : System(a_pp, a_spatial_solution_order, a_temporal_solution_order)
 {
-   // Create all the timers that will be active in a Vlasov-Poisson system.
+   // Create all the timers specific to a Vlasov-Poisson system.
    TimerManager* timers(TimerManager::getManager());
-   timers->createTimer("Vlasov");
-   timers->createTimer("phys to phase");
-   timers->createTimer("blowout");
-   timers->createTimer("driver");
-   timers->createTimer("contraction");
-   timers->createTimer("reduction");
-   timers->createTimer("reduction to phase");
-   timers->createTimer("summation");
    timers->createTimer("Poisson");
-   timers->createTimer("BC (Vlasov)");
    timers->createTimer("BC (Poisson)");
-   timers->createTimer("parallel ghost");
-   timers->createTimer("collisions");
-   timers->createTimer("krook");
-   timers->createTimer("other");
-   timers->createTimer("AddSolnData");
-   timers->createTimer("CopySolnData");
-   timers->createTimer("ZeroSolnData");
    timers->createTimer("Poisson RHS");
-   timers->createTimer("Tracking Particles");
-   timers->createTimer("Noisy Particles");
 
    // Read alll user input.
    parseParameters(a_pp);
 
    // Create the state for this system, essentially all the KineticSpecies and
    // a Poisson object.
-   createVPState(a_pp);
+   createVPState(a_pp, a_coll_diag_on);
 
    // Now that all the loads are defined, load balance the system.
    loadBalance();
@@ -106,8 +54,12 @@ VPSystem::VPSystem(
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
    Poisson& state_poisson = *m_state.poisson();
    int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
-   ParmParse ppp("poisson");
-   state_poisson.readParticles(ppp);
+
+   double vlo[2], vhi[2];
+   state_kinetic_species.FindSpeciesVelocityBoundingBox(vlo, vhi);
+
+   LokiInputParser ppp("poisson");
+   state_poisson.readParticles(ppp, vlo, vhi);
    bool problem_has_particles =
       state_poisson.numProblemTrackingParticles() > 0 ||
       state_poisson.numProblemNoiseSourceParticles() > 0;
@@ -125,8 +77,8 @@ VPSystem::VPSystem(
 
    // Allocate global arrays defined on configuration space for the net charge
    // density and the charge density for each species.  In addition, if there
-   // are tracking particles we need an array for the net external E field and
-   // the external E field from each species' drivers.
+   // are particles we need an array for the net external E field and the
+   // external E field from each species' drivers.
    state_poisson.newAuxVariable(m_net_charge_density, 1);
    m_charge_density.resize(num_kinetic_species);
    if (problem_has_particles) {
@@ -135,47 +87,51 @@ VPSystem::VPSystem(
    }
    for (int s(0); s < num_kinetic_species; ++s) {
       state_poisson.newAuxVariable(m_charge_density[s], 1);
-      m_charge_density[s] = 0.0;
       if (problem_has_particles) {
          state_poisson.newAuxVariable(m_ext_efield[s], 2);
-         m_ext_efield[s] = 0.0;
       }
    }
 
-   // Also need global arrays defined on configuration space for the total E
-   // field, species KE, species KE flux on physical boundaries, and species KE
-   // flux on velocity boundaries.
-   state_poisson.newAuxVariable(m_efield, 2);
+   // Also need global array defined on configuration space for the collision
+   // diagnostics.
    state_poisson.newAuxVariable(m_species_ke, 1);
-   state_poisson.newAuxVariable(m_species_phys_bdry_flux, 1);
-   state_poisson.newAuxVariable(m_species_vel_bdry_flux, 1);
+   state_poisson.newAuxVariable(m_species_momx, 1);
+   state_poisson.newAuxVariable(m_species_momy, 1);
+   state_poisson.newAuxVariable(m_species_ent, 1);
 
-   // NOTE:  Overture's plotStuff has a limit of 25 components per sequence.
-   // The source of this limit is not clear but it looks like it may come from
-   // the creation of the pull down menu of component names.  If there are
-   // more than 25 components in a sequence plotStuff will core dump.  If more
-   // than 25 components are needed it will be necessary to create multiple
-   // sequences.
    // Compute the number of individual time histories and allocate initial space
-   // for the time histories and time stamps.  This is not done efficiently.
-   // The time history and time stamp arrays keep growing as the simulation
-   // runs.  So we hold onto and repeatedly write old time history data.  These
-   // arrays should be of size large enough to hold the time histories between
-   // 2 plot cycles.  Then each plot file has that time intervals' worth of
-   // time history data.  The post processor will need to change to accomodate
-   // this change in handling time histories.
+   // for the time histories and time stamps.
    m_num_seq =
       Poisson::GLOBAL_TIME_HISTS +
       Poisson::TIME_HISTS_PER_PROBE * a_num_probes +
       state_poisson.numProblemTrackingParticles() * 4 +
-      num_kinetic_species * 5;
-   m_sequences.resize(m_length_seq, m_num_seq);
+      num_kinetic_species * 16;
+   m_sequences.resize(m_num_seq);
+   for (int i1 = 0; i1 < m_num_seq; ++i1) {
+      vector<double>& this_seq = m_sequences[i1];
+      this_seq.resize(m_length_seq);
+      for (int i2 = 0; i2 < m_length_seq; ++i2) {
+         this_seq[i2] = 0.0;
+      }
+   }
    m_time_seq.resize(m_length_seq);
    for (int i1(0); i1 < m_length_seq; ++i1) {
-      m_time_seq(i1) = 0.0;
-      for (int i2(0); i2 < m_num_seq; ++i2) {
-         m_sequences(i1, i2) = 0.0;
+      m_time_seq[i1] = 0.0;
+   }
+
+   // Collision version
+   m_num_seq_coll = Poisson::NUM_COLL_TIME_HISTS;
+   m_sequences_coll.resize(m_num_seq_coll);
+   for (int i1(0); i1 < m_num_seq_coll; ++i1) {
+      vector<double>& this_seq = m_sequences_coll[i1];
+      this_seq.resize(m_length_seq_coll);
+      for (int i2(0); i2 < m_length_seq_coll; ++i2) {
+         this_seq[i2] = 0.0;
       }
+   }
+   m_time_seq_coll.resize(m_length_seq_coll);
+   for (int i1(0); i1 < m_length_seq_coll; ++i1) {
+      m_time_seq_coll[i1] = 0.0;
    }
 }
 
@@ -188,29 +144,31 @@ VPSystem::~VPSystem()
 void
 VPSystem::initialize(
    bool a_is_from_restart,
-   real a_time,
-   real a_dt)
+   double a_time,
+   double a_dt,
+   bool a_coll_diag_on)
 {
    NULL_USE(a_time);
 
    // If this is an initial run (not from a restart file) then the
-   // KineticSpecies' distribution functions must be initialized.
+   // KineticSpecies' distribution functions must be initialized and the initial
+   // condition stored.  Otherwise we just need to store the initial condition.
+   LokiInputParser ppp("poisson");
    Poisson& state_poisson = *m_state.poisson();
-   state_poisson.initialize(m_species_names);
-   if (!a_is_from_restart) {
-      // Initialize each species distributed to this processor.
-      KSPV::Iterator it_end(m_state.kineticSpecies().end_locals());
-      for (KSPV::Iterator it(m_state.kineticSpecies().begin_locals());
-           it != it_end; ++it) {
-         (*it)->initialize(0.0);
-      }
+   state_poisson.initialize(ppp,
+      static_cast<int>(m_species_names.size()),
+      m_plot_ke_vel_bdy_flux,
+      a_coll_diag_on);
+   // Initialize each species distributed to this processor.
+   KSPV::Iterator it_end(m_state.kineticSpecies().end_locals());
+   for (KSPV::Iterator it(m_state.kineticSpecies().begin_locals());
+        it != it_end; ++it) {
+      (*it)->initialize(a_is_from_restart);
    }
-
-   // Compute the static factorization for Poisson's equation.
-   state_poisson.computeFactorization();
 
    // Clone all the species and Poisson from m_state into m_state_old.
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
+   PopulateInterspeciesData(state_kinetic_species);
    KineticSpeciesPtrVect& old_state_kinetic_species =
       m_state_old.kineticSpecies();
    int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
@@ -242,12 +200,12 @@ VPSystem::initialize(
 
    // Only the Poisson processor(s) are needed for the computation of the
    // electric field.
-   if (state_poisson.isPoissonProcessor()) {
+   if (state_poisson.isEMSolverProcessor()) {
       m_net_charge_density = 0;
       for (int s(0); s < num_kinetic_species; ++s) {
          m_net_charge_density += m_charge_density[s];
       }
-      state_poisson.electricField(m_efield, m_net_charge_density, 0.0);
+      state_poisson.electricField(m_net_charge_density, 0.0);
    }
 
    // If this is a restarted run we need to compute the acceleration given the
@@ -258,13 +216,18 @@ VPSystem::initialize(
    // processors so every processor must participate.
    if (a_is_from_restart) {
       for (int s(0); s < num_kinetic_species; ++s) {
-         state_kinetic_species[s]->computeAcceleration(m_efield,
-                                                       m_ext_efield[s],
-                                                       a_time,
-                                                       a_dt,
-                                                       1);
+         state_kinetic_species[s]->computeAcceleration(state_poisson,
+            m_ext_efield[s],
+            a_time,
+            a_dt,
+            1);
       }
    }
+
+   // Make an initial call to evalRHS just to set reasonable values for
+   // KineticSpecies::m_lambda_max, which will be used by
+   // KineticSpecies::computeDt in determining the first timestep size.
+   evalRHS(m_state_old, m_state, 0.0, 1.0e-16, false, false);
 }
 
 
@@ -279,30 +242,9 @@ VPSystem::defineRHSData(
    int num_kinetic_species = static_cast<int>(prototype_kspv.size());
    rhs_kspv.resize(num_kinetic_species);
    for (int s(0); s < num_kinetic_species; ++s) {
-      rhs_kspv[s] = prototype_kspv[s]->clone(tbox::IntVector::Zero(m_pdim),
-         SKIP_DEEP_COPY);
+      rhs_kspv[s] = prototype_kspv[s]->clone();
    }
-   a_rhs.poisson() =
-      a_prototype.poisson()->clone(tbox::IntVector::Zero(m_cdim));
-}
-
-
-void
-VPSystem::defineSolnData(
-   VPState&       a_soln,
-   const VPState& a_prototype)
-{
-   // We need to define all species on all processors of a_soln.
-   KineticSpeciesPtrVect& soln_kspv = a_soln.kineticSpecies();
-   const KineticSpeciesPtrVect& prototype_kspv = a_prototype.kineticSpecies();
-   int num_kinetic_species = static_cast<int>(prototype_kspv.size());
-   soln_kspv.resize(num_kinetic_species);
-   for (int s(0); s < num_kinetic_species; ++s) {
-      soln_kspv[s] = prototype_kspv[s]->clone(tbox::IntVector::Zero(m_pdim),
-         SKIP_DEEP_COPY);
-   }
-   a_soln.poisson() =
-      a_prototype.poisson()->clone(tbox::IntVector::Zero(m_cdim));
+   a_rhs.poisson() = a_prototype.poisson()->clone();
 }
 
 
@@ -324,7 +266,7 @@ VPSystem::copySolnData(
       (*dst_it)->copySolnData(*(*src_it));
    }
    tbox::Pointer<Poisson>& a_dst_poisson = a_dst.poisson();
-   if (a_dst_poisson->isPoissonProcessor()) {
+   if (a_dst_poisson->isEMSolverProcessor()) {
      a_dst_poisson->copySolnData(*a_src.poisson());
    }
    timers->stopTimer("CopySolnData");
@@ -345,7 +287,7 @@ VPSystem::zeroSolnData(
       (*it)->zeroData();
    }
    tbox::Pointer<Poisson>& a_soln_poisson = a_soln.poisson();
-   if (a_soln_poisson->isPoissonProcessor()) {
+   if (a_soln_poisson->isEMSolverProcessor()) {
       a_soln_poisson->zeroData();
    }
    timers->stopTimer("ZeroSolnData");
@@ -356,8 +298,8 @@ void
 VPSystem::addSolnData(
    VPState&       a_soln,
    const VPState& a_increment,
-   real           a_scale,
-   bool           a_final_rk)
+   double         a_scale,
+   bool           a_sum_reduce_inc)
 {
    // Add the solution data to a_soln only for the species distributed to this
    // processor.
@@ -372,8 +314,10 @@ VPSystem::addSolnData(
       (*soln_it)->addData(*(*increment_it), a_scale);
    }
    tbox::Pointer<Poisson>& a_soln_poisson = a_soln.poisson();
-   if (a_soln_poisson->isPoissonProcessor()) {
-      a_soln_poisson->addData(*a_increment.poisson(), a_scale, a_final_rk);
+   if (a_soln_poisson->isEMSolverProcessor()) {
+      a_soln_poisson->addData(*a_increment.poisson(),
+         a_scale,
+         a_sum_reduce_inc);
    }
    timers->stopTimer("AddSolnData");
 }
@@ -429,9 +373,10 @@ void
 VPSystem::evalRHS(
    VPState& a_rhs,
    VPState& a_state,
-   real     a_time,
-   real     a_dt,
-   int      a_stage)
+   double   a_time,
+   double   a_dt,
+   bool     a_first_rk_stage,
+   bool     a_last_rk_stage)
 {
    KineticSpeciesPtrVect& rhs_kspv = a_rhs.kineticSpecies();
    Poisson& rhs_poisson = *a_rhs.poisson();
@@ -459,12 +404,13 @@ VPSystem::evalRHS(
    // between the Poisson and Vlasov processors the velocity computation will
    // appear to be a bottleneck as its parallel communication can not proceed
    // until all processors have reached that point.
-   if (state_poisson.isPoissonProcessor()) {
+   if (state_poisson.isEMSolverProcessor()) {
+      state_poisson.fillGhostCells(false);
       m_net_charge_density = 0.0;
       for (int s(0); s < num_kinetic_species; ++s) {
          m_net_charge_density += m_charge_density[s];
       }
-      state_poisson.electricField(m_efield, m_net_charge_density, a_time);
+      state_poisson.electricField(m_net_charge_density, a_time);
    }
 
    // Perform the advection computation for each species distributed to each
@@ -488,39 +434,44 @@ VPSystem::evalRHS(
    // Poisson processor(s) to Vlasov processors so every processor must
    // participate.
    for (int s(0); s < num_kinetic_species; ++s) {
-      state_kspv[s]->computeAcceleration(m_efield,
-                                         m_ext_efield[s],
-                                         a_time,
-                                         a_dt,
-                                         a_stage);
+      state_kspv[s]->computeAcceleration(state_poisson,
+         m_ext_efield[s],
+         a_time,
+         a_dt,
+         a_first_rk_stage);
    }
 
-   // For each species distributed to this processor, fill acceleration ghost
-   // cells (boundaries of velocity domain) then compute RHS.  This only
+   // For each species distributed to this processor, fill acceleration boundary
+   // condition (boundaries of velocity domain) then compute RHS.  This only
    // involves the Vlasov processors.
    a_rhs_it.reset();
    for (KSPV::Iterator a_state_it(state_kspv.begin_locals());
         a_state_it != a_state_it_end; ++a_state_it, ++a_rhs_it) {
-      (*a_state_it)->fillAccelerationGhostCells();
+      (*a_state_it)->setAccelerationBCs();
       if (m_do_new_algorithm) {
          (*a_state_it)->evalAccelerationDerivatives(*(*a_rhs_it));
       }
       else {
          (*a_state_it)->evalAccelerationFluxes();
       }
-      (*a_state_it)->completeRHS(*(*a_rhs_it), a_time, m_do_new_algorithm);
+      (*a_state_it)->completeRHS(*(*a_rhs_it),
+         a_time,
+         a_dt,
+         m_do_new_algorithm,
+         a_last_rk_stage);
    }
-   if (state_poisson.isPoissonProcessor()) {
-      // If there are tracking particles then compute the net externally applied
-      // E field which is needed to update them.
+   if (state_poisson.isEMSolverProcessor()) {
+      // If there are particles then compute the net externally applied E field
+      // which is needed to update them.
       if (state_poisson.numProblemTrackingParticles() > 0 ||
           state_poisson.numProblemNoiseSourceParticles() > 0) {
          m_net_ext_efield = 0.0;
          for (int s(0); s < num_kinetic_species; ++s) {
             m_net_ext_efield += m_ext_efield[s];
          }
+         m_net_ext_efield.communicateGhostData();
+         state_poisson.evalRHS(rhs_poisson, m_net_ext_efield, a_time);
       }
-      state_poisson.evalRHS(rhs_poisson, m_net_ext_efield, a_time);
    }
 }
 
@@ -530,37 +481,34 @@ VPSystem::postStageAdvance(
    VPState& a_soln,
    int a_stage)
 {
-   // This is a hack needed for 6th order RK.  See comment for copyPlotFields in
-   // Poisson.H 
-   if (m_temporal_solution_order == 6 && a_stage == 8) {
-      a_soln.poisson()->copyPlotFields(*m_state.poisson());
-   }
+   NULL_USE(a_soln);
+   NULL_USE(a_stage);
 }
 
 
-real
+double
 VPSystem::stableDt()
 {
-   real dt_stable(tbox::MathUtilities<real>::getMax());
+   double dt_stable(tbox::MathUtilities<double>::getMax());
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
    // Compute the time step contraint for each species distributed to this
    // processor and take the min of them.
    KSPV::Iterator it_end(state_kinetic_species.end_locals());
    for (KSPV::Iterator it(state_kinetic_species.begin_locals());
         it != it_end; ++it) {
-      real dt_species = (*it)->computeDt();
-      dt_stable = std::min(dt_stable, dt_species);
+      double dt_species = (*it)->computeDt();
+      dt_stable = min(dt_stable, dt_species);
    }
-   dt_stable = ParallelUtility::getMinValue(dt_stable);
+   dt_stable = Loki_Utilities::getMinValue(dt_stable);
    
    return dt_stable;
 }
 
 
-real
+double
 VPSystem::advance(
-   real a_cur_time,
-   real a_dt)
+   double a_cur_time,
+   double a_dt)
 {
    TimerManager* timers(TimerManager::getManager());
    timers->startTimer("other");
@@ -576,71 +524,92 @@ VPSystem::advance(
    return new_time;
 }
 
-
-int
-VPSystem::getNumFrameSeries()
+void
+VPSystem::plot(
+   double a_time,
+   double a_dt,
+   const vector<vector<double> >& a_probes,
+   int a_num_probes,
+   int a_saved_seq,
+   int& a_saved_save,
+   string& a_time_hist_file_name)
 {
-   return Poisson::NUM_FRAME_SERIES;
+   tbox::Pointer<Poisson>& state_poisson = m_state.poisson();
+   if (m_plot_ke_vel_bdy_flux) {
+      // Compute the KE velocity boundary flux which will be a plotted quantity.
+      // As there is parallel communication in this computation all processors
+      // must participate for all species.
+      KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
+      int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
+      for (int s(0); s < num_kinetic_species; ++s) {
+         state_kinetic_species[s]->computeKEVelBdyFlux(*state_poisson);
+      }
+   }
+
+   // The Poisson object actually writes the plot data.
+   if (state_poisson->isEMSolverProcessor()) {
+      state_poisson->plot(a_time,
+         a_dt,
+         m_sequences,
+         m_species_names,
+         m_time_seq,
+         a_probes,
+         a_num_probes,
+         a_saved_seq,
+         a_saved_save,
+         m_plot_ke_vel_bdy_flux,
+         a_time_hist_file_name);
+   }
 }
 
 
 void
-VPSystem::plot(
-   real a_time,
-   real a_dt,
-   const RealArray& a_probes,
-   int a_num_probes,
+VPSystem::plotColl(
+   double a_time,
+   double a_dt,
    int a_saved_seq,
    int& a_saved_save,
-   Ogshow& a_show)
+   string& a_time_hist_file_name)
 {
+   // Save the plot data
    tbox::Pointer<Poisson>& state_poisson = m_state.poisson();
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
-   // Compute the KE velocity boundary flux which will be a plotted quantity.
-   // As there is parallel communication in this computation all processors
-   // must participate for all species.
-   int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
-   for (int s(0); s < num_kinetic_species; ++s) {
-      state_kinetic_species[s]->computeKEVelBdyFlux(*state_poisson,
-         m_species_vel_bdry_flux);
-   }
 
-   // The Poisson object actually writes the plot data.
-   state_poisson->plot(a_time,
+   state_poisson->plotCollision(a_time,
       a_dt,
-      m_sequences,
+      state_kinetic_species,
+      m_sequences_coll,
       m_species_names,
-      m_time_seq,
-      a_probes,
-      a_num_probes,
-      m_num_seq,
+      m_time_seq_coll,
       a_saved_seq,
       a_saved_save,
-      a_show);
+      a_time_hist_file_name);
 }
 
 
 void
 VPSystem::accumulateSequences(
-   real a_time,
-   const RealArray& a_probes,
+   double a_time,
+   const vector<vector<double> >& a_probes,
    int a_num_probes,
    int& a_saved_seq)
 {
-   // resize saved sequence if necessary
+   // resize m_time_seq and m_sequences if necessary
    if (a_saved_seq >= m_length_seq) {
       m_length_seq *= 2;
       m_time_seq.resize(m_length_seq);
-      m_sequences.resize(m_length_seq, m_num_seq);
-
-      for (int i1(a_saved_seq); i1 < m_length_seq; ++i1) {
-         m_time_seq(i1) = 0.0;
-         for (int i2(0); i2 < m_num_seq; ++i2) {
-            m_sequences(i1, i2) = 0.0;
+      for (int i = a_saved_seq; i < m_length_seq; ++i) {
+         m_time_seq[i] = 0.0;
+      }
+      for (int i = 0; i < m_num_seq; ++i) {
+         vector<double>& this_seq = m_sequences[i];
+         this_seq.resize(m_length_seq);
+         for (int j = a_saved_seq; j < m_length_seq; ++j) {
+            this_seq[j] = 0.0;
          }
       }
    }
-   m_time_seq(a_saved_seq) = a_time;
+   m_time_seq[a_saved_seq] = a_time;
 
    // Get the Poisson object's time histories.
    tbox::Pointer<Poisson>& state_poisson = m_state.poisson();
@@ -653,16 +622,71 @@ VPSystem::accumulateSequences(
 
    // Get each kinetic species time history.  There is parallel communication
    // involved here so each processor must participate for each species.
-   bool is_poisson_proc = state_poisson->isPoissonProcessor();
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
    int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
    for (int s(0); s < num_kinetic_species; ++s) {
-      state_kinetic_species[s]->accumulateSequences(is_poisson_proc,
-         m_sequences,
+      state_kinetic_species[s]->accumulateSequences(m_sequences,
          a_saved_seq,
          seq_idx,
+         a_time);
+   }
+
+   // We've saved another time history.
+   ++a_saved_seq;
+}
+
+
+void
+VPSystem::accumulateCollisionSequences(
+   double a_time,
+   double a_dt,
+   int a_coll_op_idx,
+   int& a_saved_seq)
+{
+   // resize m_time_seq_coll and m_sequences_coll if necessary
+   if (a_saved_seq >= m_length_seq_coll) {
+      m_length_seq_coll *= 2;
+      m_time_seq_coll.resize(m_length_seq_coll);
+      for (int i(a_saved_seq); i < m_length_seq_coll; ++i) {
+         m_time_seq_coll[i] = 0.0;
+      }
+      for (int i(0); i < m_num_seq_coll; ++i) {
+         vector<double>& this_seq = m_sequences_coll[i];
+         this_seq.resize(m_length_seq_coll);
+         for (int j(a_saved_seq); j < m_length_seq_coll; ++j) {
+            this_seq[j] = 0.0;
+         }
+      }
+   }
+   m_time_seq_coll[a_saved_seq] = a_time;
+
+   // Get the Poisson object's time histories.
+   tbox::Pointer<Poisson>& state_poisson = m_state.poisson();
+   int seq_idx = 0;
+   state_poisson->accumulateCollisionSequences(m_sequences_coll,
+      a_saved_seq,
+      seq_idx);
+
+   // Get each kinetic species time history.  There is parallel communication
+   // involved here so each processor must participate for each species.
+   bool is_poisson_proc = state_poisson->isEMSolverProcessor();
+   KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
+   int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
+   for (int s(0); s < num_kinetic_species; ++s) {
+      state_kinetic_species[s]->accumulateCollisionSequences(a_dt,
+         a_coll_op_idx,
+         m_sequences_coll,
+         a_saved_seq,
+         seq_idx);
+
+      state_kinetic_species[s]->accumulateMomentSequences(is_poisson_proc,
+         m_sequences_coll,
+         a_saved_seq,
+         seq_idx,
+         m_species_momx,
+         m_species_momy,
          m_species_ke,
-         m_species_phys_bdry_flux);
+         m_species_ent);
    }
 
    // We've saved another time history.
@@ -672,58 +696,67 @@ VPSystem::accumulateSequences(
 
 void
 VPSystem::getFromRestart(
-   const HDF_DataBase& a_db)
+   RestartReader& a_reader)
 {
-   HDF_DataBase sub_db;
-   a_db.locate(sub_db, "species_list");
-
    // Read all the species names from the restart file and ensure that they
    // match the names in the input deck.  If they don't then the restart file
    // and input deck are incompatible.
    int species_list_size;
-   a_db.get(species_list_size, "species_list_size");
+   a_reader.readIntegerValue("species_list_size", species_list_size);
+   a_reader.readDoubleValue("bz_const", m_bz_const); //IEO
    int num_species_names = static_cast<int>(m_species_names.size());
    if (species_list_size != num_species_names) {
-      OV_ABORT("Kinetic species names list length mismatch!");
+      LOKI_ABORT("Kinetic species names list length mismatch!");
    }
 
+   a_reader.pushSubDir("species_list");
    for (int s(0); s < species_list_size; ++s) {
-      aString tmp;
-      std::stringstream tag;
+      string tmp;
+      stringstream tag;
       tag << "species." << s + 1;
-      sub_db.get(tmp, (aString)tag.str());
+      a_reader.readString(tag.str(), tmp);
 
       int i;
       for (i = 0; i < num_species_names; ++i) {
-         if (m_species_names[i] == tmp) {  // TODO: Explicitly cast m_species_names to aString, or allow auto casting...?
+         if (m_species_names[i] == tmp) {
             break;
          }
       }
       if (i == num_species_names) {
-         OV_ABORT("Kinetic species names from restart don't match names from input file!");
+         LOKI_ABORT("Kinetic species names from restart don't match names from input file!");
       }
    }
+
+   a_reader.popSubDir();
 }
 
   
 void
 VPSystem::putToRestart(
-   HDF_DataBase& a_db,
-   real a_time)
+   RestartWriter& a_writer,
+   double a_time)
 {
    NULL_USE(a_time);
 
-   // Write the species names to the restart file.
-   HDF_DataBase sub_db;
-   a_db.create(sub_db, "species_list", "directory");
+   bool write_data = Loki_Utilities::s_my_id == 0;
 
    int species_list_size(static_cast<int>(m_species_names.size()));
-   a_db.put(species_list_size, "species_list_size");
+   a_writer.writeIntegerValue("species_list_size",
+      species_list_size,
+      write_data);
+   a_writer.writeDoubleValue("bz_const", m_bz_const, write_data); //IEO
+   a_writer.writeIntegerValue("plot_ke_vel_bdy_flux",
+      static_cast<int>(m_plot_ke_vel_bdy_flux),
+      write_data);
+
+   // Write the species names to a directory in the restart file.
+   a_writer.pushSubDir("species_list");
    for (int s(0); s < species_list_size; ++s) {
-      std::stringstream tag;
+      stringstream tag;
       tag << "species." << s + 1;
-      sub_db.put(m_species_names[s], tag.str().c_str());
+      a_writer.writeString(tag.str(), m_species_names[s], write_data);
    }
+   a_writer.popSubDir();
 }
 
 long int
@@ -737,40 +770,68 @@ VPSystem::problemSize() const
       m_state.kineticSpecies();
    int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
    for (int s(0); s < num_kinetic_species; ++s) {
-      size = std::max(size, state_kinetic_species[s]->numberOfCells());
+      size = max(size, state_kinetic_species[s]->numberOfCells());
    }
    return size;
 }
 
 void
-VPSystem::updateGhosts()
+VPSystem::updateGhosts(
+   bool a_particles_only)
 {
-   KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
+   // Update the Poisson ghost cells.
+   Poisson& state_poisson = *m_state.poisson();
+   if (state_poisson.isEMSolverProcessor()) {
+      state_poisson.fillGhostCells(a_particles_only);
+   }
    // Update the advection ghost cells for each species distributed to this
    // processor.
-   KSPV::Iterator species_it_end(state_kinetic_species.end_locals());
-   for (KSPV::Iterator species_it(state_kinetic_species.begin_locals());
-        species_it != species_it_end; ++species_it) {
-      (*species_it)->fillAdvectionGhostCells();
+   if (!a_particles_only) {
+      KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
+      KSPV::Iterator species_it_end(state_kinetic_species.end_locals());
+      for (KSPV::Iterator species_it(state_kinetic_species.begin_locals());
+           species_it != species_it_end; ++species_it) {
+         (*species_it)->fillAdvectionGhostCells();
+      }
    }
+}
+
+void
+VPSystem::printParameters() const
+{
+   m_state.poisson()->printParameters();
+   int num_kinetic_species = static_cast<int>(m_state.kineticSpecies().size());
+   for (int s = 0; s < num_kinetic_species; ++s) {
+      m_state.kineticSpecies()[s]->printParameters();
+   }
+   printDecomposition();
 }
 
 ////// PRIVATE FUNCTIONS ////////////////////////////////////
 void
 VPSystem::createVPState(
-   ParmParse& a_pp)
+   LokiInputParser& a_pp,
+   bool a_coll_diag_on)
 {
    int number_of_species(1);
    a_pp.query("number_of_species", number_of_species);
 
-   aString test_str = "false";
+   string test_str = "false";
    a_pp.query("use_new_bcs", test_str);
-   bool use_new_bcs = test_str.matches("true") ? true : false;
+   bool use_new_bcs = test_str.compare("true") == 0 ? true : false;
 
    // Make the Poisson object's sub-database and construct it.
-   ParmParse ppp("poisson");
-   m_state.poisson() =
-      new Poisson(ppp, m_cfg_domain, number_of_species, m_spatial_solution_order);
+   int plot_times_per_file = 1;
+   a_pp.query("plot_times_per_file", plot_times_per_file);
+   LokiInputParser ppp("poisson");
+   m_state.poisson() = new Poisson(ppp,
+                                   m_cfg_domain,
+                                   number_of_species,
+                                   m_spatial_solution_order,
+                                   plot_times_per_file,
+                                   m_plot_ke_vel_bdy_flux,
+                                   a_coll_diag_on,
+                                   m_bz_const); //IEO
 
    // For each species, make its sub-database and construct it.
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
@@ -778,9 +839,10 @@ VPSystem::createVPState(
 
    for (int s(0); s < number_of_species; ++s) {
 
-      char buffer[100];
-      sprintf(buffer, "kinetic_species.%i", s+1);
-      ParmParse ppspecies(buffer);
+      ostringstream input_string;
+      input_string << "kinetic_species." << s+1;
+      LokiInputParser ppspecies(input_string.str().c_str());
+      input_string.str("");
 
       state_kinetic_species[s] = new KineticSpecies(m_cfg_domain,
          ppspecies,
@@ -788,8 +850,10 @@ VPSystem::createVPState(
          number_of_species,
          m_spatial_solution_order,
          m_temporal_solution_order,
+         m_plot_ke_vel_bdy_flux,
          use_new_bcs,
-         false);
+         false,
+         m_bz_const); //IEO
 
       // Create list of species names
       m_species_names.push_back(state_kinetic_species[s]->name().c_str());
@@ -800,11 +864,9 @@ VPSystem::createVPState(
 void
 VPSystem::loadBalance()
 {
-   LoadBalancer load_balancer;
-
    // Every species, even those not distributed to this processor, is a load to
    // be balanced as is the Poisson object.
-   std::vector<Load*> load_vector;
+   vector<Load*> load_vector;
    KineticSpeciesPtrVect& state_kinetic_species = m_state.kineticSpecies();
    int num_kinetic_species = static_cast<int>(state_kinetic_species.size());
    for (int s(0); s < num_kinetic_species; ++s) {
@@ -813,9 +875,7 @@ VPSystem::loadBalance()
    load_vector.push_back(m_state.poisson().getPointer());
 
    // Balance everything.
-   load_balancer.balance(load_vector);
-
-   printDecomposition();
+   LoadBalancer::balance(load_vector);
 }
 
 
@@ -823,7 +883,7 @@ void
 VPSystem::printDecomposition() const
 {
    // Print the decompositions of the Poisson and of each species.
-   printF("\n#*#*# VPSystem: Parallel Decomposition #*#*#\n");
+   Loki_Utilities::printF("\n#*#*# VPSystem: Parallel Decomposition #*#*#\n");
    m_state.poisson()->printDecomposition();
 
    const KineticSpeciesPtrVect& state_kinetic_species =

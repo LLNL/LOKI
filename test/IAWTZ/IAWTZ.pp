@@ -9,8 +9,10 @@ $ya = -1*$pi;
 $yb =  1*$pi;
 #
 #
-$IMass = 10; 
-$EMass = 1 ; 
+$IMass = 10;
+$IT = 1.0; 
+$EMass = 1 ;
+$ET = 1.0; 
 $IAlpha = sqrt($IMass) ;  
 $EAlpha = sqrt($EMass) ; 
 $vthI = 1.0/$IAlpha ; 
@@ -65,8 +67,8 @@ kinetic_species.1.tz.ion_mass = $IMass
 #
 #
 kinetic_species.1.ic.name = "Perturbed Maxwellian"
-kinetic_species.1.ic.alpha = $EAlpha 
-kinetic_species.1.ic.beta = $EAlpha 
+kinetic_species.1.ic.tx = $ET 
+kinetic_species.1.ic.ty = $ET 
 kinetic_species.1.ic.vx0 = 0.0
 kinetic_species.1.ic.vy0 = 0.0
 kinetic_species.1.ic.A = 0.0
@@ -89,8 +91,8 @@ kinetic_species.2.tz.ion_mass = $IMass
 #
 #
 kinetic_species.2.ic.name = "Perturbed Maxwellian"
-kinetic_species.2.ic.alpha = $IAlpha 
-kinetic_species.2.ic.beta = $IAlpha 
+kinetic_species.2.ic.tx = $IT 
+kinetic_species.2.ic.ty = $IT 
 kinetic_species.2.ic.vx0 = 0.0
 kinetic_species.2.ic.vy0 = 0.0
 kinetic_species.2.ic.A = 0.0

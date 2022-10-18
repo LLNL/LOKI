@@ -5,6 +5,8 @@ $klde = sqrt($omega**2-1)/$clight;
 $Ey = 1.e-4;
 $Bz = $klde*$Ey/$omega;
 $uy = -$Ey/$omega;
+$avWeak = 0.0;
+$avStrong = 1.6/$clight;
 #
 $pi = 3.1415926535897932384626;
 $pihalf = $pi/2.0;
@@ -62,8 +64,8 @@ kinetic_species.1.Nv = 64 64
 kinetic_species.1.mass = 1.0
 kinetic_species.1.charge = -1.0
 kinetic_species.1.ic.name = "Perturbed Maxwellian"
-kinetic_species.1.ic.alpha = 1.0 
-kinetic_species.1.ic.beta = 1.0
+kinetic_species.1.ic.tx = 1.0 
+kinetic_species.1.ic.ty = 1.0
 kinetic_species.1.ic.vx0 = 0.0
 kinetic_species.1.ic.vy0 = $uy
 kinetic_species.1.ic.A = 0.0
@@ -77,8 +79,8 @@ kinetic_species.1.ic.phase = $pihalf
 #
 # Field solve parameters
 #
-maxwell.avWeak = 0.0
-maxwell.avStrong = 0.1
+maxwell.avWeak = $avWeak
+maxwell.avStrong = $avStrong
 maxwell.em_ic.1.name = "SimpleEMIC"
 maxwell.em_ic.1.field = "E"
 maxwell.em_ic.1.xamp = 0.0

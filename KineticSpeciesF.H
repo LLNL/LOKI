@@ -1,38 +1,10 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _KINETIC_SPECIES_FORT_H_
@@ -52,37 +24,33 @@
 #define FORT_COMPUTE_ACCELERATION_FLUXES_4D   computeaccelerationfluxes4d_
 #define FORT_ACCUM_FLUX_DIV_4D                accumfluxdiv4d_
 #define FORT_COMPUTE_CURRENTS_4D              computecurrents_
-#define FORT_COMPUTE_KE_4D                    computeke4d_
-#define FORT_COMPUTE_KE_2D                    computeke2d_
-#define FORT_COMPUTE_KE_FLUX_4D               computekeflux4d_
-#define FORT_COMPUTE_KE_FLUX_2D               computekeflux2d_
+#define FORT_COMPUTE_KE                       computeke_
+#define FORT_COMPUTE_KE_MAXWELL               computekemaxwell_
+#define FORT_COMPUTE_KE_E_DOT                 computekeedot_
+#define FORT_COMPUTE_MOM_4D                   computemom4d_
+#define FORT_INTEGRATE_2D                     integrate2d_
+#define FORT_COMPUTE_MOM_2D                   computemom2d_
+#define FORT_COMPUTE_KE_FLUX                  computekeflux_
 #define FORT_COMPUTE_KE_VEL_SPACE_FLUX        computekevelspaceflux_
 #define FORT_APPEND_KROOK                     appendkrook_
 
 /**
- * Prototypes of fortran functions called by KineticSpecies.\
+ * Prototypes of fortran functions called by KineticSpecies.
  */
 extern "C" {
    void
    FORT_XPBY_4D(
-      real &x,
-      const int &nx1lo,
-      const int &nx1hi,
-      const int &nx2lo,
-      const int &nx2hi,
-      const int &nx3lo,
-      const int &nx3hi,
-      const int &nx4lo,
-      const int &nx4hi,
-      const real &y,
-      const int &ny1lo,
-      const int &ny1hi,
-      const int &ny2lo,
-      const int &ny2hi,
-      const int &ny3lo,
-      const int &ny3hi,
-      const int &ny4lo,
-      const int &ny4hi,
+      double &x,
+      const double &y,
+      const double &b,
+      const int &nd1lo,
+      const int &nd1hi,
+      const int &nd2lo,
+      const int &nd2hi,
+      const int &nd3lo,
+      const int &nd3hi,
+      const int &nd4lo,
+      const int &nd4hi,
       const int &n1lo,
       const int &n1hi,
       const int &n2lo,
@@ -90,12 +58,11 @@ extern "C" {
       const int &n3lo,
       const int &n3hi,
       const int &n4lo,
-      const int &n4hi,
-      const real &b);
+      const int &n4hi);
 
    void
    FORT_SET_ADVECTION_BCS_4D(
-      real &u,
+      double &u,
       const int &ng1lo,
       const int &ng1hi,
       const int &ng2lo,
@@ -121,16 +88,15 @@ extern "C" {
       const int &n4lo,
       const int &n4hi,
       const int &solution_order,
-      const real &vel1,
-      const real &vel2,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real &ic_phase_param,
+      const double &vel1,
+      const double &vel2,
       const int &xPeriodic,
-      const int &yPeriodic);
+      const int &yPeriodic,
+      const int64_t &ic);
 
    void
    FORT_SET_ACCELERATION_BCS_4D(
-      real &u,
+      double &u,
       const int &ng1lo,
       const int &ng1hi,
       const int &ng2lo,
@@ -156,22 +122,13 @@ extern "C" {
       const int &n4lo,
       const int &n4hi,
       const int &solution_order,
-      const real &vel3,
-      const real &vel4,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real &ic_phase_param);
+      const double &vel3,
+      const double &vel4,
+      const int64_t &ic);
 
    void
    FORT_SET_ADVECTION_BCS_4D_JB(
-      real &u,
-      const int &ng1lo,
-      const int &ng1hi,
-      const int &ng2lo,
-      const int &ng2hi,
-      const int &ng3lo,
-      const int &ng3hi,
-      const int &ng4lo,
-      const int &ng4hi,
+      double &u,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -190,16 +147,16 @@ extern "C" {
       const int &n4hi,
       const int &solution_order,
       const int &nGhost,
-      const real &vel1,
-      const real &vel2,
+      const double &vel1,
+      const double &vel2,
       PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real &ic_phase_param,
       const int &xPeriodic,
-      const int &yPeriodic);
+      const int &yPeriodic,
+      const int64_t &ic);
 
    void
    FORT_SET_ACCELERATION_BCS_4D_JB(
-      real &u,
+      double &u,
       const int &ng1lo,
       const int &ng1hi,
       const int &ng2lo,
@@ -226,15 +183,15 @@ extern "C" {
       const int &n4hi,
       const int &solution_order,
       const int &nGhost,
-      const real &vel3,
-      const real &vel4,
+      const double &vel3,
+      const double &vel4,
       PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real &ic_phase_param);
+      const int64_t &ic);
 
    void
    FORT_SET_PHASE_SPACE_VEL_4D(
-      real &vel3,
-      real &vel4,
+      double &vel3,
+      double &vel4,
       const int &nv1lo,
       const int &nv1hi,
       const int &nv2lo,
@@ -243,22 +200,30 @@ extern "C" {
       const int &nv3hi,
       const int &nv4lo,
       const int &nv4hi,
-      const real &accel,
+      const int &ni1lo,
+      const int &ni1hi,
+      const int &ni2lo,
+      const int &ni2hi,
+      const int &ni3lo,
+      const int &ni3hi,
+      const int &ni4lo,
+      const int &ni4hi,
+      const double &vxface_velocities,
+      const double &vyface_velocities,
+      const double &charge_per_mass, //IEO
+      const double &bz_const, //IEO
+      const double &accel,
       const int &na1lo,
       const int &na1hi,
       const int &na2lo,
       const int &na2hi,
-      const int &na3lo,
-      const int &na3hi,
-      const int &na4lo,
-      const int &na4hi,
-      real &axmax,
-      real &aymax);
+      double &axmax,
+      double &aymax);
 
    void
    FORT_SET_PHASE_SPACE_VEL_MAXWELL_4D(
-      real& vel3,
-      real& vel4,
+      double& vel3,
+      double& vel4,
       const int& nv1a,
       const int& nv1b,
       const int& nv2a,
@@ -267,16 +232,26 @@ extern "C" {
       const int& nv3b,
       const int& nv4a,
       const int& nv4b,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& charge_per_mass,
-      const real& em_vars,
-      const real& vz,
-      real& axmax,
-      real& aymax);
+      const int& ni1a,
+      const int& ni1b,
+      const int& ni2a,
+      const int& ni2b,
+      const int& ni3a,
+      const int& ni3b,
+      const int& ni4a,
+      const int& ni4b,
+      const double& vxface_velocities,
+      const double& vyface_velocities,
+      const double& normalization,
+      const double& bz_const, //IEO
+      const double& em_vars,
+      const double& vz,
+      double& axmax,
+      double& aymax);
 
    void
    FORT_ZERO_GHOST_4D(
-      real &u,
+      double &u,
       const int& n1a,
       const int& n1b,
       const int& n2a,
@@ -296,8 +271,8 @@ extern "C" {
 
    void
    FORT_COMPUTE_ADVECTION_FLUXES_4D(
-      real &flux1,
-      real &flux2,
+      double &flux1,
+      double &flux2,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -306,18 +281,18 @@ extern "C" {
       const int &nd3hi,
       const int &nd4lo,
       const int &nd4hi,
-      const real &vel1,
-      const real &vel2,
-      real &uface1,
-      real &uface2,
-      const real &u,
-      const real &dx,
+      const double &vel1,
+      const double &vel2,
+      double &uface1,
+      double &uface2,
+      const double &u,
+      const double &dx,
       const int &solution_order);
 
    void
    FORT_COMPUTE_ADVECTION_DERIVATIVES_4D(
-      real &rhs,
-      const real &u,
+      double &rhs,
+      const double &u,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -334,15 +309,15 @@ extern "C" {
       const int &n3hi,
       const int &n4lo,
       const int &n4hi,
-      const real &vel1,
-      const real &vel2,
-      const real &dx,
+      const double &vel1,
+      const double &vel2,
+      const double &dx,
       const int &solution_order);
-
+  
    void
    FORT_COMPUTE_ACCELERATION_DERIVATIVES_4D(
-      real &rhs,
-      const real &u,
+      double &rhs,
+      const double &u,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -359,15 +334,15 @@ extern "C" {
       const int &n3hi,
       const int &n4lo,
       const int &n4hi,
-      const real &vel3,
-      const real &vel4,
-      const real &dx,
+      const double &vel3,
+      const double &vel4,
+      const double &dx,
       const int &solution_order);
 
    void
    FORT_COMPUTE_ACCELERATION_FLUXES_4D(
-      real &flux3,
-      real &flux4,
+      double &flux3,
+      double &flux4,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -376,17 +351,17 @@ extern "C" {
       const int &nd3hi,
       const int &nd4lo,
       const int &nd4hi,
-      const real &vel3,
-      const real &vel4,
-      real &uface3,
-      real &uface4,
-      const real &u,
-      const real &dx,
+      const double &vel3,
+      const double &vel4,
+      double &uface3,
+      double &uface4,
+      const double &u,
+      const double &dx,
       const int &solution_order);
 
    void
    FORT_ACCUM_FLUX_DIV_4D(
-      real &rhs,
+      double &rhs,
       const int &nd1lo,
       const int &nd1hi,
       const int &nd2lo,
@@ -403,11 +378,11 @@ extern "C" {
       const int &n3hi,
       const int &n4lo,
       const int &n4hi,
-      const real &flux1,
-      const real &flux2,
-      const real &flux3,
-      const real &flux4,
-      PROBLEMDOMAIN_TO_FORT_PROTO);
+      const double &flux1,
+      const double &flux2,
+      const double &flux3,
+      const double &flux4,
+      const double& dx);
 
    void
    FORT_COMPUTE_CURRENTS_4D(
@@ -427,15 +402,15 @@ extern "C" {
       const int& n3hi,
       const int& n4lo,
       const int& n4hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& u,
-      const real& vz,
-      real& JxLocal,
-      real& JyLocal,
-      real& JzLocal);
+      const double& velocities,
+      const double& u,
+      const double& vz,
+      double& JxLocal,
+      double& JyLocal,
+      double& JzLocal);
 
    void
-   FORT_COMPUTE_KE_4D(
+   FORT_COMPUTE_KE(
       const int& nd1lo,
       const int& nd1hi,
       const int& nd2lo,
@@ -453,11 +428,96 @@ extern "C" {
       const int& n4lo,
       const int& n4hi,
       PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& u,
-      real& ke);
+      const double& u,
+      const double& mass,
+      const double& velocities,
+      double& ke,
+      double& ke_x,
+      double& ke_y,
+      double& px,
+      double& py);
 
    void
-   FORT_COMPUTE_KE_2D(
+   FORT_COMPUTE_KE_MAXWELL(
+      const int& nd1lo,
+      const int& nd1hi,
+      const int& nd2lo,
+      const int& nd2hi,
+      const int& nd3lo,
+      const int& nd3hi,
+      const int& nd4lo,
+      const int& nd4hi,
+      const int& n1lo,
+      const int& n1hi,
+      const int& n2lo,
+      const int& n2hi,
+      const int& n3lo,
+      const int& n3hi,
+      const int& n4lo,
+      const int& n4hi,
+      PROBLEMDOMAIN_TO_FORT_PROTO,
+      const double& u,
+      const double& mass,
+      const double& velocities,
+      const double& vz,
+      double& ke,
+      double& ke_x,
+      double& ke_y,
+      double& px,
+      double& py);
+
+   void
+   FORT_COMPUTE_KE_E_DOT(
+      const int& nd1lo,
+      const int& nd1hi,
+      const int& nd2lo,
+      const int& nd2hi,
+      const int& nd3lo,
+      const int& nd3hi,
+      const int& nd4lo,
+      const int& nd4hi,
+      const int& n1lo,
+      const int& n1hi,
+      const int& n2lo,
+      const int& n2hi,
+      const int& n3lo,
+      const int& n3hi,
+      const int& n4lo,
+      const int& n4hi,
+      PROBLEMDOMAIN_TO_FORT_PROTO,
+      const double& u,
+      const double& normalization,
+      const double& velocities,
+      const double& Ex,
+      double& ke_e_dot);
+
+   void
+   FORT_COMPUTE_MOM_4D(
+      const int& nd1lo,
+      const int& nd1hi,
+      const int& nd2lo,
+      const int& nd2hi,
+      const int& nd3lo,
+      const int& nd3hi,
+      const int& nd4lo,
+      const int& nd4hi,
+      const int& n1lo,
+      const int& n1hi,
+      const int& n2lo,
+      const int& n2hi,
+      const int& n3lo,
+      const int& n3hi,
+      const int& n4lo,
+      const int& n4hi,
+      const double& velocities,
+      const double& u,
+      double& momx,
+      double& momy,
+      double& ke,
+      double& ent);
+
+   void
+   FORT_INTEGRATE_2D(
       const int& nd1lo,
       const int& nd1hi,
       const int& nd2lo,
@@ -466,12 +526,32 @@ extern "C" {
       const int& n1hi,
       const int& n2lo,
       const int& n2hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& ke_2d,
-      real& ke);
+      const double& dx,
+      const double& ke_2d,
+      double& ke);
 
    void
-   FORT_COMPUTE_KE_FLUX_4D(
+   FORT_COMPUTE_MOM_2D(
+      const int& nd1lo,
+      const int& nd1hi,
+      const int& nd2lo,
+      const int& nd2hi,
+      const int& n1lo,
+      const int& n1hi,
+      const int& n2lo,
+      const int& n2hi,
+      const double& dx,
+      const double& momx_2d,
+      const double& momy_2d,
+      const double& ke_2d,
+      const double& ent_2d,
+      double& momx,
+      double& momy,
+      double& ke,
+      double& ent);
+
+   void
+   FORT_COMPUTE_KE_FLUX(
       const int& nd1lo,
       const int& nd1hi,
       const int& nd2lo,
@@ -496,33 +576,18 @@ extern "C" {
       const int& ng3hi,
       const int& ng4lo,
       const int& ng4hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& face_flux1,
-      const real& face_flux2,
-      const real& face_vel1,
-      const real& face_vel2,
-      real& ke_flux,
-      const int& dir);
-
-   void
-   FORT_COMPUTE_KE_FLUX_2D(
-      const int& nd1lo,
-      const int& nd1hi,
-      const int& nd2lo,
-      const int& nd2hi,
-      const int& n1lo,
-      const int& n1hi,
-      const int& n2lo,
-      const int& n2hi,
-      const int& ng1lo,
-      const int& ng1hi,
-      const int& ng2lo,
-      const int& ng2hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& ke_flux_2d,
-      real& ke_flux,
+      const double& dx,
+      const double& face_flux1,
+      const double& face_flux2,
+      const double& face_flux3,
+      const double& face_flux4,
+      const double& velocities,
+      const double& vxface_velocities,
+      const double& vyface_velocities,
       const int& dir,
-      const int& side);
+      const int& side,
+      const double& mass,
+      double& ke_flux);
 
    void
    FORT_COMPUTE_KE_VEL_SPACE_FLUX(
@@ -550,11 +615,13 @@ extern "C" {
       const int& ng3hi,
       const int& ng4lo,
       const int& ng4hi,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& face_flux3,
-      const real& face_flux4,
-      real& ke_flux,
-      const real& mass,
+      const double& dx,
+      const double& face_flux3,
+      const double& face_flux4,
+      double& ke_flux,
+      const double& mass,
+      const double& vxface_velocities,
+      const double& vyface_velocities,
       const int& side,
       const int& dir);
 
@@ -576,13 +643,11 @@ extern "C" {
       const int& n3b,
       const int& n4a,
       const int& n4b,
-      PROBLEMDOMAIN_TO_FORT_PROTO,
-      const real& xlo_krook,
-      const real& xhi_krook,
-      const real& krookPower,
-      const real& krookCoeff,
-      const real& u,
-      real& rhs);
+      const double& a_dt,
+      const int64_t& ic,
+      const double& nu,
+      const double& u,
+      double& rhs);
 
 };
 

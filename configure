@@ -639,12 +639,11 @@ ac_subst_vars='LTLIBOBJS
 LIBOBJS
 LIB_NAME
 LIB_PATH
-DATA_MOVE_INC_PATH
 INC_PATH
 F77_FLAGS
 C_FLAGS
 CXX_FLAGS
-Overture
+Packages
 dox_output_dir
 DOXYGEN_BIN
 MPIFLAGS
@@ -714,7 +713,7 @@ enable_option_checking
 with_CC
 with_CXX
 with_F77
-with_overture
+with_packages
 enable_superlu
 enable_warnings
 enable_debug
@@ -1385,10 +1384,10 @@ Optional Packages:
 
   --with-CXX=ARG          manually set C++ compiler to ARG
 
-  --with-F77=ARG          set the Fortran77 compiler that Overture was built
-                          with to ARG
+  --with-F77=ARG          set the Fortran77 compiler that the packages were
+                          built with to ARG
 
-  --with-overture=ARG     location of Overture installation
+  --with-packages=ARG     location of packages installation
 
   --with-mpi-include=DIR  mpi.h is in DIR
   --with-mpi-libs=LIBS    LIBS is space-separated list of library names
@@ -1884,25 +1883,23 @@ fi
 
 
 
-# Check whether --with-overture was given.
-if test "${with_overture+set}" = set; then
-  withval=$with_overture;
+# Check whether --with-packages was given.
+if test "${with_packages+set}" = set; then
+  withval=$with_packages;
 fi
 
-if test -z "$with_overture"; then
-   { { $as_echo "$as_me:$LINENO: error: location of the Overture installation must be given" >&5
-$as_echo "$as_me: error: location of the Overture installation must be given" >&2;}
+if test -z "$with_packages"; then
+   { { $as_echo "$as_me:$LINENO: error: location of the packages installation must be given" >&5
+$as_echo "$as_me: error: location of the packages installation must be given" >&2;}
    { (exit 1); exit 1; }; }
 else
-   Overture="$with_overture"
+   Packages="$with_packages"
 fi
 
 CXX_FLAGS="$CXXFLAGS"
 C_FLAGS="$CFLAGS"
 F77_FLAGS="$FFLAGS"
 
-DASH_D="-DUSE_PPP"
-DATA_MOVE_INC_PATH=
 INC_PATH=
 LIB_PATH=
 LIB_NAME=
@@ -1910,7 +1907,7 @@ SUPERLU_LIB_PATH=
 SUPERLU_DIST_LIB_PATH=
 METIS_LIB_PATH=
 PARMETIS_LIB_PATH=
-PETSC_DIR="$Overture/PETSc"
+PETSC_DIR="$Packages/PETSc"
 PETSC_LIB_PATH="-L$PETSC_DIR/lib"
 
 # Check whether --enable-superlu was given.
@@ -1922,8 +1919,6 @@ else
 fi
 
 if test "$enable_superlu" = "yes"; then
-   DASH_D="-DUSE_SUPERLU $DASH_D"
-
    SUPERLU_DIR="$PETSC_DIR/SUPERLU"
    SUPERLU_LIB_PATH="-L$SUPERLU_DIR/lib"
 
@@ -1995,7 +1990,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:1998:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:1993:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -2020,7 +2015,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:2023:" "before running compiler search: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:2018:" "before running compiler search: $log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -2656,7 +2651,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:2659:" "after running compiler search: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:2654:" "after running compiler search: $log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -3820,8 +3815,8 @@ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
-  echo "configure:3823:" CC is $CC >&5
-  echo "configure:3824:" CPP is $CPP >&5
+  echo "configure:3818:" CC is $CC >&5
+  echo "configure:3819:" CPP is $CPP >&5
 
   CC_ID=unknown
   CC_VERSION=unknown
@@ -3830,7 +3825,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
   # Check if it is a Sun compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3833:" checking if $CC is sunpro >&5
+    echo "configure:3828:" checking if $CC is sunpro >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3855,7 +3850,7 @@ rm -f conftest*
 
   # Check if it is a Intel compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3858:" checking if $CC is intel >&5
+    echo "configure:3853:" checking if $CC is intel >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3883,7 +3878,7 @@ rm -f conftest*
 
   # Check if it is a GNU compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3886:" checking if $CC is gnu >&5
+    echo "configure:3881:" checking if $CC is gnu >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3908,7 +3903,7 @@ rm -f conftest*
 
   # Check if it is a DEC compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3911:" checking if $CC is dec >&5
+    echo "configure:3906:" checking if $CC is dec >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3933,7 +3928,7 @@ rm -f conftest*
 
   # Check if it is a KAI compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3936:" checking if $CC is kai >&5
+    echo "configure:3931:" checking if $CC is kai >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3958,7 +3953,7 @@ rm -f conftest*
 
   # Check if it is a SGI compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3961:" checking if $CC is sgi >&5
+    echo "configure:3956:" checking if $CC is sgi >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -3983,17 +3978,17 @@ rm -f conftest*
 
   # Check if it is a IBM compiler.
   if test $CC_ID = unknown; then
-    echo "configure:3986:" checking if $CC is xlc >&5
+    echo "configure:3981:" checking if $CC is xlc >&5
     if echo "$host_os" | grep "aix" >/dev/null ; then
       # The wretched IBM shell does not eval correctly,
       # so we have to help it with a pre-eval eval statement.
       ac_cpp=`eval "echo $ac_cpp"`
       save_ac_cpp=$ac_cpp
-      echo "configure:3992:" ac_cpp is temporarily set to $ac_cpp >&5
+      echo "configure:3987:" ac_cpp is temporarily set to $ac_cpp >&5
     else
       save_ac_cpp=
     fi
-    echo "configure:3996:" ac_cpp is $ac_cpp >&5
+    echo "configure:3991:" ac_cpp is $ac_cpp >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4017,7 +4012,7 @@ fi
 rm -f conftest*
 
     test "$save_ac_cpp" && ac_cpp=$save_ac_cpp
-    echo "configure:4020:" ac_cpp is restored to $ac_cpp >&5
+    echo "configure:4015:" ac_cpp is restored to $ac_cpp >&5
   fi
 
 
@@ -4037,7 +4032,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:4040:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:4035:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -4289,8 +4284,8 @@ ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
-  echo "configure:4292:" CXXP is $CXX >&5
-  echo "configure:4293:" CXXCPP is $CXXCPP >&5
+  echo "configure:4287:" CXXP is $CXX >&5
+  echo "configure:4288:" CXXCPP is $CXXCPP >&5
 
   CXX_ID=unknown
   CXX_VERSION=unknown
@@ -4299,7 +4294,7 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
   # Check if it is a Sun compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4302:" checking if $CXX is sunpro >&5
+    echo "configure:4297:" checking if $CXX is sunpro >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4324,7 +4319,7 @@ rm -f conftest*
 
   # Check if it is a Intel compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4327:" checking if $CXX is intel >&5
+    echo "configure:4322:" checking if $CXX is intel >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4352,7 +4347,7 @@ rm -f conftest*
 
   # Check if it is a GNU compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4355:" checking if $CXX is gnu >&5
+    echo "configure:4350:" checking if $CXX is gnu >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4380,7 +4375,7 @@ rm -f conftest*
 
   # Check if it is a DEC compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4383:" checking if $CXX is dec >&5
+    echo "configure:4378:" checking if $CXX is dec >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4405,7 +4400,7 @@ rm -f conftest*
 
   # Check if it is a KAI compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4408:" checking if $CXX is kai >&5
+    echo "configure:4403:" checking if $CXX is kai >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4430,7 +4425,7 @@ rm -f conftest*
 
   # Check if it is a SGI compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4433:" checking if $CXX is sgi >&5
+    echo "configure:4428:" checking if $CXX is sgi >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4455,7 +4450,7 @@ rm -f conftest*
 
   # Check if it is a IBM compiler.
   if test $CXX_ID = unknown; then
-    echo "configure:4458:" checking if $CXX is xlc >&5
+    echo "configure:4453:" checking if $CXX is xlc >&5
     cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -4497,7 +4492,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:4500:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:4495:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -4808,7 +4803,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:4811:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:4806:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -5475,7 +5470,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:5478:" "after using ac_f77_library_ldflags: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:5473:" "after using ac_f77_library_ldflags: $log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -5488,9 +5483,6 @@ else
 
 fi
 
-if test "$enable_petsc_solvers" = "yes"; then
-   DASH_D="-DOVERTURE_USE_PETSC $DASH_D"
-fi
 
 if test "${with_mpi-include+set}" = set || test "${with_mpi-lib-dirs+set}" = set || test "${with_mpi_libs+set}" = set; then
    { $as_echo "$as_me:$LINENO: checking for ANSI C header files" >&5
@@ -7326,41 +7318,31 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:7329:" "After successfully finding MPI using casc_find_mpi: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:7321:" "After successfully finding MPI using casc_find_mpi: $log_vars_index is $log_vars_value" >&5;
 done
 
 
    fi
 fi
 
-Oges="$Overture/Oges"
-
-rm -f PETScEquationSolver.C
-ln -s $Oges/PETScEquationSolver.C PETScEquationSolver.C
-
-DATA_MOVE_INC_PATH="-DHAVE_CONFIG_H -I$Overture/A++/../include -I$Overture/A++/../PARTI -I$Overture/A++/../PADRE/src -I$Overture/A++/../PADRE/PGSLIB -fPIC $INC_PATH"
-INC_PATH="$DASH_D -I. -I$Overture/include -I$Overture/A++/include $INC_PATH -I$Overture/HDF/include -I$PETSC_DIR/include -I$Overture/OpenGL/include"
+INC_PATH="-I. $INC_PATH -I$Packages/FFTW/include -I$Packages/HDF/include -I$PETSC_DIR/include -I/usr/lib64/perl5/CORE"
 
 if test "$fortran_name" = "pgf77"; then
    LIB_PATH="-L/usr/local/tools/pmgr/lib ${LIB_PATH}"
 fi
-LIB_PATH="-L$Overture/lib -L$Overture/HDF/lib $PETSC_LIB_PATH -L$Overture/A++/lib -L$Overture/OpenGL/lib64 $SUPERLU_LIB_PATH $SUPERLU_DIST_LIB_PATH $PARMETIS_LIB_PATH $METIS_LIB_PATH $LIB_PATH -L/usr/lib64 -L/usr/lib64/perl5/CORE -L./tbox"
+LIB_PATH="-L$Packages/HDF/lib -L$Packages/FFTW/lib $PETSC_LIB_PATH $SUPERLU_LIB_PATH $SUPERLU_DIST_LIB_PATH $PARMETIS_LIB_PATH $METIS_LIB_PATH $LIB_PATH -L/usr/lib64 -L/usr/lib64/perl5/CORE -L./tbox"
 
-OVERTURE_LIBS="-lOverture -lOverture_static -lOgmg"
 HDF_LIBS="-lhdf5 -ljpeg -lz"
-PETSC_LIBS="-lpetsc"
+FFTW_LIBS="-lfftw3"
+PETSC_LIBS="-lpetsc -lblas -lX11"
 SUPERLU_LIBS="-lsuperlu"
 SUPERLU_DIST_LIBS="-lsuperlu_dist -llapack"
 PARMETIS_LIBS="-lparmetis"
 METIS_LIBS="-lmetis"
-APLUSPLUS_LIBS="-lPpp -lPpp_static -lpthread -ldl -lrt -lstdc++ -lm"
-OPENGL_LIBS="-lGL -lGLU -lOSMesa"
-MOTIF_LIBS="-lXm"
-XLIBS="-lXp -lXt -lXmu -lXi -lXext -lX11"
 PERL_LIBS="-lperl -lresolv -lnsl -ldl -lm -lcrypt -lutil -lpthread -lc"
 TBOX_LIBS="-ltbox"
 
-LIB_NAME="$OVERTURE_LIBS $HDF_LIBS $PETSC_LIBS $SUPERLU_LIBS $SUPERLU_DIST_LIBS $PARMETIS_LIBS $METIS_LIBS $APLUSPLUS_LIBS $LIB_NAME $OPENGL_LIBS $MOTIF_LIBS $XLIBS $PERL_LIBS $TBOX_LIBS"
+LIB_NAME="$HDF_LIBS $FFTW_LIBS $PETSC_LIBS $SUPERLU_LIBS $SUPERLU_DIST_LIBS $PARMETIS_LIBS $METIS_LIBS -lstdc++ $LIB_NAME $PERL_LIBS $TBOX_LIBS"
 
 
 
@@ -7372,7 +7354,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:7375:" "before adding rpath syntax: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:7357:" "before adding rpath syntax: $log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -7839,7 +7821,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:7842:" "forming rpaths: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:7824:" "forming rpaths: $log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -7905,7 +7887,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:7908:" "after adding rpath syntax: $log_vars_index is $log_vars_value" >&5;
+  echo "configure:7890:" "after adding rpath syntax: $log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -8032,7 +8014,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:8035:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:8017:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -8067,20 +8049,21 @@ fi
 
 
 
-
 subdirs="${subdirs}
 docs/
 tbox/
 test/
-test/EPWTZ/
-test/IAWTZ/
-test/TrigTZ/
 test/emDamping/
+test/EPWTZ/
+test/External2D/
+test/IAWTZ/
+test/InterpenetratingStreams/
 test/pitchAngleCollisions/
 test/planeEPW_fixedIons/
 test/planeIAW/
 test/planeIAW_6/
 test/rosenbluthCollisions/
+test/TrigTZ/
 "
 
 makefiles="Makefile"
@@ -8095,7 +8078,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:8095:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:8081:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 
@@ -8109,7 +8092,7 @@ for log_vars_index in $log_vars ; do
   else
     log_vars_value="unset";
   fi
-  echo "configure:8109:" "$log_vars_index is $log_vars_value" >&5;
+  echo "configure:8095:" "$log_vars_index is $log_vars_value" >&5;
 done
 
 

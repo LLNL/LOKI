@@ -1,1 +1,1 @@
-0.0 1.0e-14 1.0e-10 1.0e1 tstol_w_br rosenbluthCollisions_w_br rosenbluthCollisions_w_br 1 6 0
+dist_tol_w_br tstol_w_br field_tol_w_br rosenbluthCollisions_w_br rosenbluthCollisions_w_br 2 1 coll_tstol_w_br coll_field_tol_w_br

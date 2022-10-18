@@ -1,55 +1,25 @@
 c
-c Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+c Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+c See the top-level LICENSE file for details.
 c Produced at the Lawrence Livermore National Laboratory
 c
-c Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
-c Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
-c hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
-c berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
-c Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
-c Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
-c CH-1015 Lausanne, Switzerland).
-c CODE-744849
-c
-c All rights reserved.
-c
-c This file is part of Loki.  For details, see.
-c
-c Permission is hereby granted, free of charge, to any person obtaining a
-c copy of this software and associated documentation files (the "Software"),
-c to deal in the Software without restriction, including without limitation
-c the rights to use, copy, modify, merge, publish, distribute, sublicense,
-c and/or sell copies of the Software, and to permit persons to whom the
-c Software is furnished to do so, subject to the following conditions:
-c
-c The above copyright notice and this permission notice shall be included in
-c all copies or substantial portions of the Software.
-c
-c THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-c OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-c FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
-c THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-c LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-c FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-c DEALINGS IN THE SOFTWARE.
+c SPDX-License-Identifier: MIT
 c
 c Fortran functions called by KineticSpecies.
 c
       subroutine xpby4d( 
      &     x,
-     &     nx1lo,nx1hi,nx2lo,nx2hi,nx3lo,nx3hi,nx4lo,nx4hi,
      &     y,
-     &     ny1lo,ny1hi,ny2lo,ny2hi,ny3lo,ny3hi,ny4lo,ny4hi,
-     &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
-     &     b )
+     &     b,
+     &     nd1lo,nd1hi,nd2lo,nd2hi,nd3lo,nd3hi,nd4lo,nd4hi,
+     &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b )
 c
       implicit none
 c
-      integer nx1lo,nx1hi,nx2lo,nx2hi,nx3lo,nx3hi,nx4lo,nx4hi
-      integer ny1lo,ny1hi,ny2lo,ny2hi,ny3lo,ny3hi,ny4lo,ny4hi
+      integer nd1lo,nd1hi,nd2lo,nd2hi,nd3lo,nd3hi,nd4lo,nd4hi
       integer n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b
-      real x( nx1lo:nx1hi,nx2lo:nx2hi,nx3lo:nx3hi,nx4lo:nx4hi )
-      real y( ny1lo:ny1hi,ny2lo:ny2hi,ny3lo:ny3hi,ny4lo:ny4hi )
+      real x( nd1lo:nd1hi,nd2lo:nd2hi,nd3lo:nd3hi,nd4lo:nd4hi )
+      real y( nd1lo:nd1hi,nd2lo:nd2hi,nd3lo:nd3hi,nd4lo:nd4hi )
       real b
 c
       integer i1,i2,i3,i4
@@ -72,8 +42,12 @@ c
       subroutine setphasespacevel4D(
      &     vel3,vel4,
      &     nv1a,nv1b,nv2a,nv2b,nv3a,nv3b,nv4a,nv4b,
+     &     ni1a,ni1b,ni2a,ni2b,ni3a,ni3b,ni4a,ni4b,
+     &     vxface_velocities,
+     &     vyface_velocities,
+     &     normalization, bz_const,
      &     accel,
-     &     na1a,na1b,na2a,na2b,na3a,na3b,na4a,na4b,
+     &     na1a,na1b,na2a,na2b,
      &     axmax,aymax )
 c
 c.. declarations of incoming variables
@@ -81,8 +55,12 @@ c
       implicit none
       integer nv1a,nv1b,nv2a,nv2b
       integer nv3a,nv3b,nv4a,nv4b
+      integer ni1a,ni1b,ni2a,ni2b
+      integer ni3a,ni3b,ni4a,ni4b
       integer na1a,na1b,na2a,na2b
-      integer na3a,na3b,na4a,na4b
+      real vxface_velocities( nv3a:nv3b+1,nv4a:nv4b,0:1 )
+      real vyface_velocities( nv3a:nv3b,nv4a:nv4b+1,0:1 )
+      real normalization, bz_const !IEO
       real accel( na1a:na1b,na2a:na2b,0:1 )
       real vel3( nv3a:nv3b+1,nv4a:nv4b,nv1a:nv1b,nv2a:nv2b )
       real vel4( nv4a:nv4b+1,nv1a:nv1b,nv2a:nv2b,nv3a:nv3b )
@@ -91,26 +69,42 @@ c
 c.. declarations of local variables
 c
       integer i1,i2,i3,i4
+      real vx, vy !IEO
 
       axmax = 0.0
-      do i2 = na2a,na2b
-      do i1 = na1a,na1b
       do i4 = nv4a,nv4b
       do i3 = nv3a,nv3b+1
-        vel3(i3,i4,i1,i2) = accel(i1,i2,0)
-        axmax = max(axmax,abs(accel(i1,i2,0)))
+        vy  = vxface_velocities(i3, i4, 1)
+      do i2 = na2a,na2b
+      do i1 = na1a,na1b
+        vel3(i3,i4,i1,i2) = accel(i1,i2,0) + 
+     *    normalization * vy * bz_const
+        if ((i1 .ge. ni1a .and. i1 .le. ni1b) .and.
+     *      (i2 .ge. ni2a .and. i2 .le. ni2b) .and.
+     *      (i3 .ge. ni3a .and. i3 .le. ni3b+1) .and.
+     *      (i4 .ge. ni4a .and. i4 .le. ni4b)) then
+          axmax = max(axmax,abs(vel3(i3,i4,i1,i2)))
+        end if
       end do
       end do
       end do
       end do
+
 
       aymax = 0.0
       do i3 = nv3a,nv3b
       do i2 = na2a,na2b
       do i1 = na1a,na1b
       do i4 = nv4a,nv4b+1
-        vel4(i4,i1,i2,i3) = accel(i1,i2,1)
-        aymax = max(aymax,abs(accel(i1,i2,1)))
+        vx  = vyface_velocities(i3, i4, 0)
+        vel4(i4,i1,i2,i3) = accel(i1,i2,1) - 
+     *    normalization * vx * bz_const
+        if ((i1 .ge. ni1a .and. i1 .le. ni1b) .and.
+     *      (i2 .ge. ni2a .and. i2 .le. ni2b) .and.
+     *      (i3 .ge. ni3a .and. i3 .le. ni3b) .and.
+     *      (i4 .ge. ni4a .and. i4 .le. ni4b+1)) then
+          aymax = max(aymax,abs(vel4(i4,i1,i2,i3)))
+        end if
       end do
       end do
       end do
@@ -124,8 +118,10 @@ c
       subroutine setphasespacevelmaxwell4D(
      &     vel3, vel4,
      &     nv1a, nv1b, nv2a, nv2b, nv3a, nv3b, nv4a, nv4b,
-     &     xlo, xhi, dx,
-     &     charge_per_mass,
+     &     ni1a, ni1b, ni2a, ni2b, ni3a, ni3b, ni4a, ni4b,
+     &     vxface_velocities,
+     &     vyface_velocities,
+     &     normalization, bz_const,
      &     em_vars,
      &     vz,
      &     axmax, aymax)
@@ -136,35 +132,39 @@ c   velocities to faces
 c
 c.. declarations of incoming variables
       integer nv1a, nv1b, nv2a, nv2b, nv3a, nv3b, nv4a, nv4b
-      real xlo(1:4), xhi(1:4), dx(1:4)
-      real charge_per_mass
+      integer ni1a, ni1b, ni2a, ni2b, ni3a, ni3b, ni4a, ni4b
+      real vxface_velocities(nv3a:nv3b+1, nv4a:nv4b, 0:1)
+      real vyface_velocities(nv3a:nv3b, nv4a:nv4b+1, 0:1)
+      real normalization, bz_const !IEO
       real vel3(nv3a:nv3b+1, nv4a:nv4b, nv1a:nv1b, nv2a:nv2b)
       real vel4(nv4a:nv4b+1, nv1a:nv1b, nv2a:nv2b, nv3a:nv3b)
       real em_vars(nv1a:nv1b, nv2a:nv2b, 1:6)
-      real vz(nv1a:nv1b, nv2a:nv2b, 1:1)
+      real vz(nv1a:nv1b, nv2a:nv2b)
       real axmax, aymax
 c
 c.. declaration of local variables
       integer i1, i2, i3, i4
-      real vx, vy, vx0, vy0, dvx, dvy
+      real vx, vy
       real accel
 c
 c.. x component
-      vx0 = xlo(3)
-      vy0 = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
       axmax = 0.0
       do i3 = nv3a, nv3b+1
       do i4 = nv4a, nv4b
-        vy = vy0+(0.5+i4)*dvy
+        vy  = vxface_velocities(i3, i4, 1)
         do i1 = nv1a, nv1b
         do i2 = nv2a, nv2b
-          accel = charge_per_mass*(em_vars(i1, i2, 1) +
-     *       vy * em_vars(i1, i2, 6) -
-     *       vz(i1, i2, 1)*em_vars(i1, i2, 5))
+          accel = normalization*(em_vars(i1, i2, 1) +
+     *       vy * em_vars(i1, i2, 6) +
+     *       vy * bz_const - !IEO
+     *       vz(i1, i2)*em_vars(i1, i2, 5))
           vel3(i3, i4, i1, i2) = accel
-          axmax = max(axmax, abs(accel))
+          if ((i1 .ge. ni1a .and. i1 .le. ni1b) .and.
+     *        (i2 .ge. ni2a .and. i2 .le. ni2b) .and.
+     *        (i3 .ge. ni3a .and. i3 .le. ni3b+1) .and.
+     *        (i4 .ge. ni4a .and. i4 .le. ni4b)) then
+            axmax = max(axmax, abs(accel))
+          end if
         end do
         end do
       end do
@@ -176,12 +176,18 @@ c.. y component
       do i1 = nv1a, nv1b
       do i2 = nv2a, nv2b
       do i3 = nv3a, nv3b
-        vx = vx0+(0.5+i3)*dvx
-        accel = charge_per_mass*(em_vars(i1, i2, 2) +
-     *     vz(i1, i2, 1) * em_vars(i1, i2, 4) -
-     *     vx * em_vars(i1, i2, 6))
+        vx  = vyface_velocities(i3, i4, 0)
+        accel = normalization*(em_vars(i1, i2, 2) +
+     *     vz(i1, i2) * em_vars(i1, i2, 4) -
+     *     vx * em_vars(i1, i2, 6) -
+     *     vx * bz_const) !IEO
         vel4(i4, i1, i2, i3) = accel
-        aymax = max(aymax, abs(accel))
+        if ((i1 .ge. ni1a .and. i1 .le. ni1b) .and.
+     *      (i2 .ge. ni2a .and. i2 .le. ni2b) .and.
+     *      (i3 .ge. ni3a .and. i3 .le. ni3b) .and.
+     *      (i4 .ge. ni4a .and. i4 .le. ni4b+1)) then
+          aymax = max(aymax, abs(accel))
+        end if
       end do
       end do
       end do
@@ -731,7 +737,7 @@ c.. declarations of local variables
       real wmax,wmin
       real tmp
 c
-      eps = 1.e-6
+      eps = 1.e-10
 c
       ! get left and right 3rd order approximations
 c      fl = (-um2+5.0*um1+2.0*u0)/6.0
@@ -981,7 +987,7 @@ c
      *     nd1a,nd1b,nd2a,nd2b,nd3a,nd3b,nd4a,nd4b,
      *     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
      *     fluxx1,fluxx2,fluxx3,fluxx4,
-     *     xlo, xhi, deltax)
+     *     deltax)
 c
 c.. add updates ...
       implicit none
@@ -998,7 +1004,7 @@ c      real rhs ( n1a:n1b,n2a:n2b,n3a:n3b,n4a:n4b )
       real fluxx3( nd3a:nd3b+1,nd4a:nd4b,nd1a:nd1b,nd2a:nd2b )
       real fluxx4( nd4a:nd4b+1,nd1a:nd1b,nd2a:nd2b,nd3a:nd3b )
 c
-      real xlo(1:4),xhi(1:4),deltax(1:4)
+      real deltax(1:4)
 c.. declarations of local variables
       integer i1,i2,i3,i4
       real dx, dy, dvx, dvy
@@ -1033,9 +1039,7 @@ c
      &     nl1a,nl1b,nl2a,nl2b,nl3a,nl3b,nl4a,nl4b,
      &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
      &     solution_order,
-     &     vel3,vel4,
-     &     xlo, xhi, dx,
-     &     ic_phase_param )
+     &     vel3,vel4,ic )
 c
 c.. boundary conditions 
 c
@@ -1051,40 +1055,13 @@ c.. declarations of incoming variables
       real u(nl1a:nl1b,nl2a:nl2b,nl3a:nl3b,nl4a:nl4b)
       real vel3( nl3a:nl3b+1,nl4a:nl4b,nl1a:nl1b,nl2a:nl2b )
       real vel4( nl4a:nl4b+1,nl1a:nl1b,nl2a:nl2b,nl3a:nl3b )
-      real xlo(1:4), xhi(1:4), dx(1:4)
-      real ic_phase_param(*)
+      integer*8 ic
 c
 c.. declarations of local variables
+      real initialconditionatpoint
       integer nghosts
-      integer i1,i2,i3,i4
-      real alpha,beta,vx0,vy0,vflowinitx,vflowinity
-      real vxlo,vylo,dvx,dvy
-      real fgt1,fgt2,fgt3
-      real fgb1,fgb2,fgb3
-      real vx,vy
-      real pi
+      integer i1,i2,i3,i4,ig,loc
 c
-      real fx
-      real fy
-c
-      real one,four
-c
-      one = 1.0
-      four = 4.0
-c
-      pi  = four*atan(one)
-c
-      alpha      = ic_phase_param(1)
-      beta       = ic_phase_param(2)
-      vx0        = ic_phase_param(3)
-      vy0        = ic_phase_param(4)
-      vflowinitx = ic_phase_param(5)
-      vflowinity = ic_phase_param(6)
-c
-      vxlo = xlo(3)
-      vylo = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
       if (solution_order .eq. 4) then
         nghosts = 2
       else
@@ -1094,67 +1071,21 @@ c
 c.. set i3 boundaries
       if ((ng3b-nghosts .eq. n3b) .or. (ng3a+nghosts .eq. n3a)) then
       do i4 = nl4a,nl4b
-cccc
-cccc  sample distribution on top
-        i3 = n3b
-        vx = vxlo+(0.5+(i3+1))*dvx
-        vy = vylo+(0.5+i4)*dvy
-        fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-        fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-        fgt1 = fx*fy
-        fgt1 = alpha*beta/(2.0*pi)*fgt1
-c
-        vx = vxlo+(0.5+(i3+2))*dvx
-        fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-        fgt2 = fx*fy
-        fgt2 = alpha*beta/(2.0*pi)*fgt2
-c
-        if (solution_order .eq. 6) then
-          vx = vxlo+(0.5+(i3+3))*dvx
-          fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-          fgt3 = fx*fy
-          fgt3 = alpha*beta/(2.0*pi)*fgt3
-        end if
-cccc
-cccc  sample distribution on bottom
-        i3 = n3a
-        vx = vxlo+(0.5+(i3-1))*dvx
-        fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-        fgb1 = fx*fy
-        fgb1 = alpha*beta/(2.0*pi)*fgb1
-c
-        vx = vxlo+(0.5+(i3-2))*dvx
-        fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-        fgb2 = fx*fy
-        fgb2 = alpha*beta/(2.0*pi)*fgb2
-c
-        if (solution_order .eq. 6) then
-          vx = vxlo+(0.5+(i3-3))*dvx
-          fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-          fgb3 = fx*fy
-          fgb3 = alpha*beta/(2.0*pi)*fgb3
-        end if
-cccc
 c
         if( ng3b-nghosts.eq.n3b ) then
         do i2 = nl2a,nl2b
         do i1 = nl1a,nl1b
           ! top
           if( vel3(n3b+1,i4,i1,i2) .ge. 0.0 ) then
-            u(i1,i2,n3b+1,i4) = 3.0*u(i1,i2,n3b,i4)-
-     *           3.0*u(i1,i2,n3b-1,i4)+u(i1,i2,n3b-2,i4)
-            u(i1,i2,n3b+2,i4) = 3.0*u(i1,i2,n3b+1,i4)-
-     *           3.0*u(i1,i2,n3b,i4)+u(i1,i2,n3b-1,i4)
-            if (solution_order .eq. 6) then
-              u(i1,i2,n3b+3,i4) = 3.0*u(i1,i2,n3b+2,i4)-
-     *             3.0*u(i1,i2,n3b+1,i4)+u(i1,i2,n3b,i4)
-            end if
+            do ig = 1,nghosts
+              u(i1,i2,n3b+ig,i4) = 3.0*u(i1,i2,n3b+ig-1,i4)-
+     *          3.0*u(i1,i2,n3b+ig-2,i4)+u(i1,i2,n3b+ig-3,i4)
+            end do
           else
-            u(i1,i2,n3b+1,i4) = fgt1
-            u(i1,i2,n3b+2,i4) = fgt2
-            if (solution_order .eq. 6) then
-              u(i1,i2,n3b+3,i4) = fgt3
-            end if
+            do ig = 1,nghosts
+              loc = n3b+ig
+              u(i1,i2,loc,i4) = initialconditionatpoint(ic,i1,i2,loc,i4)
+            end do
           end if
         end do
         end do
@@ -1163,23 +1094,17 @@ c
         if( ng3a+nghosts.eq.n3a ) then
         do i2 = nl2a,nl2b
         do i1 = nl1a,nl1b
-
           ! bottom
           if( vel3(n3a,i4,i1,i2) .gt. 0.0 ) then
-            u(i1,i2,n3a-1,i4) = fgb1
-            u(i1,i2,n3a-2,i4) = fgb2
-            if (solution_order .eq. 6) then
-              u(i1,i2,n3a-3,i4) = fgb3
-            end if
+            do ig = 1,nghosts
+              loc = n3a-ig
+              u(i1,i2,loc,i4) = initialconditionatpoint(ic,i1,i2,loc,i4)
+            end do
           else
-            u(i1,i2,n3a-1,i4) = 3.0*u(i1,i2,n3a,i4)-
-     *           3.0*u(i1,i2,n3a+1,i4)+u(i1,i2,n3a+2,i4)
-            u(i1,i2,n3a-2,i4) = 3.0*u(i1,i2,n3a-1,i4)-
-     *           3.0*u(i1,i2,n3a,i4)+u(i1,i2,n3a+1,i4)
-            if (solution_order .eq. 6) then
-              u(i1,i2,n3a-3,i4) = 3.0*u(i1,i2,n3a-2,i4)-
-     *             3.0*u(i1,i2,n3a-1,i4)+u(i1,i2,n3a,i4)
-            end if
+            do ig = 1,nghosts
+              u(i1,i2,n3a-ig,i4) = 3.0*u(i1,i2,n3a-ig+1,i4)-
+     *          3.0*u(i1,i2,n3a-ig+2,i4)+u(i1,i2,n3a-ig+3,i4)
+            end do
           end if
         end do
         end do
@@ -1191,66 +1116,21 @@ c
 c.. set i4 boundaries
       if ((ng4b-nghosts.eq.n4b) .or. (ng4a+nghosts .eq. n4a)) then
       do i3 = nl3a,nl3b
-cccc
-cccc  sample distribution on top
-        i4 = n4b
-        vx = vxlo+(0.5+i3)*dvx
-        vy = vylo+(0.5+(i4+1))*dvy
-        fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-        fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-        fgt1 = fx*fy
-        fgt1 = alpha*beta/(2.0*pi)*fgt1
-c
-        vy = vylo+(0.5+(i4+2))*dvy
-        fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-        fgt2 = fx*fy
-        fgt2 = alpha*beta/(2.0*pi)*fgt2
-c
-        if (solution_order .eq. 6) then
-          vy = vylo+(0.5+(i4+3))*dvy
-          fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-          fgt3 = fx*fy
-          fgt3 = alpha*beta/(2.0*pi)*fgt3
-        end if
-cccc
-cccc  sample distribution on bottom
-        i4 = n4a
-        vy = vylo+(0.5+(i4-1))*dvy
-        fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-        fgb1 = fx*fy
-        fgb1 = alpha*beta/(2.0*pi)*fgb1
-c
-        vy = vylo+(0.5+(i4-2))*dvy
-        fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-        fgb2 = fx*fy
-        fgb2 = alpha*beta/(2.0*pi)*fgb2
-c
-        if (solution_order .eq. 6) then
-          vy = vylo+(0.5+(i4-3))*dvy
-          fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-          fgb3 = fx*fy
-          fgb3 = alpha*beta/(2.0*pi)*fgb3
-        end if
 c
         if( ng4b-nghosts.eq.n4b ) then
         do i2 = nl2a,nl2b
         do i1 = nl1a,nl1b
           ! top
           if( vel4(n4b+1,i1,i2,i3) .ge. 0.0 ) then
-            u(i1,i2,i3,n4b+1) = 3.0*u(i1,i2,i3,n4b)-
-     *           3.0*u(i1,i2,i3,n4b-1)+u(i1,i2,i3,n4b-2)
-            u(i1,i2,i3,n4b+2) = 3.0*u(i1,i2,i3,n4b+1)-
-     *           3.0*u(i1,i2,i3,n4b)+u(i1,i2,i3,n4b-1)
-            if (solution_order .eq. 6) then
-              u(i1,i2,i3,n4b+3) = 3.0*u(i1,i2,i3,n4b+2)-
-     *             3.0*u(i1,i2,i3,n4b+1)+u(i1,i2,i3,n4b)
-            end if
+            do ig = 1,nghosts
+              u(i1,i2,i3,n4b+ig) = 3.0*u(i1,i2,i3,n4b+ig-1)-
+     *          3.0*u(i1,i2,i3,n4b+ig-2)+u(i1,i2,i3,n4b+ig-3)
+            end do
           else
-            u(i1,i2,i3,n4b+1) = fgt1
-            u(i1,i2,i3,n4b+2) = fgt2
-            if (solution_order .eq. 6) then
-              u(i1,i2,i3,n4b+3) = fgt3
-            end if
+            do ig = 1,nghosts
+              loc = n4b+ig
+              u(i1,i2,i3,loc) = initialconditionatpoint(ic,i1,i2,i3,loc)
+            end do
           end if
         end do
         end do
@@ -1261,20 +1141,15 @@ c
         do i1 = nl1a,nl1b
           ! bottom
           if( vel4(n4a,i1,i2,i3) .gt. 0.0 ) then
-            u(i1,i2,i3,n4a-1) = fgb1
-            u(i1,i2,i3,n4a-2) = fgb2
-            if (solution_order .eq. 6) then
-              u(i1,i2,i3,n4a-3) = fgb3
-            end if
+            do ig = 1,nghosts
+              loc = n4a-ig
+              u(i1,i2,i3,loc) = initialconditionatpoint(ic,i1,i2,i3,loc)
+            end do
           else
-            u(i1,i2,i3,n4a-1) = 3.0*u(i1,i2,i3,n4a)-
-     *           3.0*u(i1,i2,i3,n4a+1)+u(i1,i2,i3,n4a+2)
-            u(i1,i2,i3,n4a-2) = 3.0*u(i1,i2,i3,n4a-1)-
-     *           3.0*u(i1,i2,i3,n4a)+u(i1,i2,i3,n4a+1)
-            if (solution_order .eq. 6) then
-              u(i1,i2,i3,n4a-3) = 3.0*u(i1,i2,i3,n4a-2)-
-     *             3.0*u(i1,i2,i3,n4a-1)+u(i1,i2,i3,n4a)
-            end if
+            do ig = 1,nghosts
+              u(i1,i2,i3,n4a-ig) = 3.0*u(i1,i2,i3,n4a-ig+1)-
+     *          3.0*u(i1,i2,i3,n4a-ig+2)+u(i1,i2,i3,n4a-ig+3)
+            end do
           end if
         end do
         end do
@@ -1294,10 +1169,8 @@ c
      &     nl1a,nl1b,nl2a,nl2b,nl3a,nl3b,nl4a,nl4b,
      &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
      &     solution_order,
-     &     vel1,vel2,
-     &     xlo, xhi, dx,
-     &     ic_phase_param,
-     &     xPeriodic, yPeriodic )
+     &     vel1, vel2,
+     &     xPeriodic, yPeriodic, ic )
 c
 c.. boundary conditions 
 c
@@ -1314,77 +1187,39 @@ c.. declarations of incoming variables
       real u(nl1a:nl1b,nl2a:nl2b,nl3a:nl3b,nl4a:nl4b)
       real vel1( nl1a:nl1b+1,nl2a:nl2b,nl3a:nl3b,nl4a:nl4b )
       real vel2( nl2a:nl2b+1,nl3a:nl3b,nl4a:nl4b,nl1a:nl1b )
-      real xlo(1:4), xhi(1:4), dx(1:4)
-      real ic_phase_param(*)
+      integer*8 ic
 c
 c.. declarations of local variables
+      real initialconditionatpoint
       integer nghosts
-      integer i1,i2,i3,i4
-      real alpha,beta,vx0,vy0,vflowinitx,vflowinity
-      real vxlo,vylo,dvx,dvy
-      real fg1
-      real vx,vy
-      real pi
+      integer i1,i2,i3,i4,ig,loc
 c
-      real fx
-      real fy
-c
-      real one,four
-c
-      one = 1.0
-      four = 4.0
-c
-      pi  = four*atan(one)
-c
-      alpha      = ic_phase_param(1)
-      beta       = ic_phase_param(2)
-      vx0        = ic_phase_param(3)
-      vy0        = ic_phase_param(4)
-      vflowinitx = ic_phase_param(5)
-      vflowinity = ic_phase_param(6)
-c
-      vxlo = xlo(3)
-      vylo = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
       if (solution_order .eq. 4) then
         nghosts = 2
       else
         nghosts = 3
       end if
+
 c.. set i1 boundaries (if not periodic)
       if ((xPeriodic .ne. 1) .and.
      *    ((ng1b-nghosts .eq. n1b) .or. (ng1a+nghosts .eq. n1a))) then
         do i4 = nl4a,nl4b
-          vy = vylo+(0.5+i4)*dvy
         do i3 = nl3a,nl3b
-          ! sample the background distribution
-          vx = vxlo+(0.5+i3)*dvx
-
-          fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-          fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-          fg1 = fx*fy
-          fg1 = alpha*beta/(2.0*pi)*fg1
-
           if( ng1b-nghosts.eq.n1b ) then
           do i2 = nl2a,nl2b
             ! top
             if( vel1(n1b+1,i2,i3,i4) .ge. 0.0 ) then
-              u(n1b+1,i2,i3,i4) = 3.0*u(n1b,i2,i3,i4)-
-     *             3.0*u(n1b-1,i2,i3,i4)+u(n1b-2,i2,i3,i4)
-              u(n1b+2,i2,i3,i4) = 3.0*u(n1b+1,i2,i3,i4)-
-     *             3.0*u(n1b,i2,i3,i4)+u(n1b-1,i2,i3,i4)
-              if (solution_order .eq. 6) then
-                u(n1b+3,i2,i3,i4) = 3.0*u(n1b+2,i2,i3,i4)-
-     *               3.0*u(n1b+1,i2,i3,i4)+u(n1b,i2,i3,i4)
-              end if
+              do ig = 1,nghosts
+                u(n1b+ig,i2,i3,i4) = 3.0*u(n1b+ig-1,i2,i3,i4)-
+     *            3.0*u(n1b+ig-2,i2,i3,i4)+u(n1b+ig-3,i2,i3,i4)
+              end do
             else
               ! sample the background distribution
-              u(n1b+1,i2,i3,i4) = fg1
-              u(n1b+2,i2,i3,i4) = fg1
-              if (solution_order .eq. 6) then
-                u(n1b+3,i2,i3,i4) = fg1
-              end if
+              do ig = 1,nghosts
+                loc = n1b+ig
+                u(loc,i2,i3,i4) =
+     *            initialconditionatpoint(ic,loc,i2,i3,i4)
+              end do
             end if
           end do
           end if
@@ -1394,20 +1229,16 @@ c.. set i1 boundaries (if not periodic)
             ! bottom
             if( vel1(n1a,i2,i3,i4) .gt. 0.0 ) then
               ! sample the background distribution
-              u(n1a-1,i2,i3,i4) = fg1
-              u(n1a-2,i2,i3,i4) = fg1
-              if (solution_order .eq. 6) then
-                u(n1a-3,i2,i3,i4) = fg1
-              end if
+              do ig = 1,nghosts
+                loc = n1a-ig
+                u(loc,i2,i3,i4) =
+     *            initialconditionatpoint(ic,loc,i2,i3,i4)
+              end do
             else
-              u(n1a-1,i2,i3,i4) = 3.0*u(n1a,i2,i3,i4)-
-     *             3.0*u(n1a+1,i2,i3,i4)+u(n1a+2,i2,i3,i4)
-              u(n1a-2,i2,i3,i4) = 3.0*u(n1a-1,i2,i3,i4)-
-     *             3.0*u(n1a,i2,i3,i4)+u(n1a+1,i2,i3,i4)
-              if (solution_order .eq. 6) then
-                u(n1a-3,i2,i3,i4) = 3.0*u(n1a-2,i2,i3,i4)-
-     *               3.0*u(n1a-1,i2,i3,i4)+u(n1a,i2,i3,i4)
-              end if
+              do ig = 1,nghosts
+                u(n1a-ig,i2,i3,i4) = 3.0*u(n1a-ig+1,i2,i3,i4)-
+     *            3.0*u(n1a-ig+2,i2,i3,i4)+u(n1a-ig+3,i2,i3,i4)
+              end do
             end if
               
           end do
@@ -1420,34 +1251,22 @@ c.. set i2 boundaries (if not periodic)
       if ((yPeriodic .ne. 1) .and.
      *    (( ng2b-nghosts.eq.n2b ) .or. (ng2a+nghosts .eq. n2a))) then
         do i4 = nl4a,nl4b
-          vy = vylo+(0.5+i4)*dvy
         do i3 = nl3a,nl3b
-          vx = vxlo+(0.5+i3)*dvx
-
-          fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-          fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-          fg1 = fx*fy
-          fg1 = alpha*beta/(2.0*pi)*fg1
-
           if( ng2b-nghosts.eq.n2b ) then
           do i1 = nl1a,nl1b
             ! top
             if( vel2(n2b+1,i3,i4,i1) .ge. 0.0 ) then
-              u(i1,n2b+1,i3,i4) = 3.0*u(i1,n2b,i3,i4)-
-     *             3.0*u(i1,n2b-1,i3,i4)+u(i1,n2b-2,i3,i4)
-              u(i1,n2b+2,i3,i4) = 3.0*u(i1,n2b+1,i3,i4)-
-     *             3.0*u(i1,n2b,i3,i4)+u(i1,n2b-1,i3,i4)
-              if (solution_order .eq. 6) then
-                u(i1,n2b+3,i3,i4) = 3.0*u(i1,n2b+2,i3,i4)-
-     *               3.0*u(i1,n2b+1,i3,i4)+u(i1,n2b,i3,i4)
-              end if
+              do ig = 1,nghosts
+                u(i1,n2b+ig,i3,i4) = 3.0*u(i1,n2b+ig-1,i3,i4)-
+     *            3.0*u(i1,n2b+ig-2,i3,i4)+u(i1,n2b+ig-3,i3,i4)
+              end do
             else
               ! sample the background distribution
-              u(i1,n2b+1,i3,i4) = fg1
-              u(i1,n2b+2,i3,i4) = fg1
-              if (solution_order .eq. 6) then
-                u(i1,n2b+3,i3,i4) = fg1
-              end if
+              do ig = 1,nghosts
+                loc = n2b+ig
+                u(i1,loc,i3,i4) =
+     *            initialconditionatpoint(ic,i1,loc,i3,i4)
+              end do
             end if
           end do
           end if
@@ -1457,20 +1276,16 @@ c.. set i2 boundaries (if not periodic)
             ! bottom
             if( vel2(n2a,i3,i4,i1) .gt. 0.0 ) then
               ! sample the background distribution
-              u(i1,n2a-1,i3,i4) = fg1
-              u(i1,n2a-2,i3,i4) = fg1
-              if (solution_order .eq. 6) then
-                u(i1,n2a-3,i3,i4) = fg1
-              end if
+              do ig = 1,nghosts
+                loc = n2a-ig
+                u(i1,loc,i3,i4) =
+     *            initialconditionatpoint(ic,i1,loc,i3,i4)
+              end do
             else
-              u(i1,n2a-1,i3,i4) = 3.0*u(i1,n2a,i3,i4)-
-     *             3.0*u(i1,n2a+1,i3,i4)+u(i1,n2a+2,i3,i4)
-              u(i1,n2a-2,i3,i4) = 3.0*u(i1,n2a-1,i3,i4)-
-     *             3.0*u(i1,n2a,i3,i4)+u(i1,n2a+1,i3,i4)
-              if (solution_order .eq. 6) then
-                u(i1,n2a-3,i3,i4) = 3.0*u(i1,n2a-2,i3,i4)-
-     *               3.0*u(i1,n2a-1,i3,i4)+u(i1,n2a,i3,i4)
-              end if
+              do ig = 1,nghosts
+                u(i1,n2a-ig,i3,i4) = 3.0*u(i1,n2a-ig+1,i3,i4)-
+     *            3.0*u(i1,n2a-ig+2,i3,i4)+u(i1,n2a-ig+3,i3,i4)
+              end do
             end if
           end do
           end if
@@ -1490,8 +1305,8 @@ c
      &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
      &     solution_order, nGhost,
      &     vel3,vel4,
-     &     xlo, xhi, dx,
-     &     ic_phase_param )
+     &     xlo, xhi, deltax,
+     &     ic)
 c
 c.. boundary conditions 
 c
@@ -1507,29 +1322,17 @@ c.. declarations of incoming variables
       real u(nl1a:nl1b,nl2a:nl2b,nl3a:nl3b,nl4a:nl4b)
       real vel3( nl3a:nl3b+1,nl4a:nl4b,nl1a:nl1b,nl2a:nl2b )
       real vel4( nl4a:nl4b+1,nl1a:nl1b,nl2a:nl2b,nl3a:nl3b )
-      real xlo(1:4), xhi(1:4), dx(1:4)
-      real ic_phase_param(*)
+      real xlo(1:4), xhi(1:4), deltax(1:4)
+      integer*8 ic
 c
 c.. declarations of local variables
-      integer i1,i2,i3,i4
+      real initialconditionatpoint
+      integer i1,i2,i3,i4,loc
       integer ig,extrapEq,iSten
       real eCoeffs(1:6,1:6)
-      real alpha,beta,vx0,vy0,vflowinitx,vflowinity
       real vxlo,vylo,vxhi,vyhi
       real dvx,dvy
-      real fsamp
       real vx,vy
-      real pi
-c
-      real fx
-      real fy
-c
-      real one,four
-c
-      one = 1.0
-      four = 4.0
-c
-      pi  = four*atan(one)
 c
 c fill in matrix of extrapolation coefficients (formula,coefficient)
       eCoeffs(1,1) = 1.0
@@ -1559,19 +1362,12 @@ c fill in matrix of extrapolation coefficients (formula,coefficient)
       eCoeffs(6,5) =  6.0
       eCoeffs(6,6) = -1.0
 c
-      alpha      = ic_phase_param(1)
-      beta       = ic_phase_param(2)
-      vx0        = ic_phase_param(3)
-      vy0        = ic_phase_param(4)
-      vflowinitx = ic_phase_param(5)
-      vflowinity = ic_phase_param(6)
-c
       vxlo = xlo(3)
       vylo = xlo(4)
       vxhi = xhi(3)
       vyhi = xhi(4)
-      dvx = dx(3)
-      dvy = dx(4)
+      dvx = deltax(3)
+      dvy = deltax(4)
 c
 c.. set lower i3 boundary
       ! check if I am the first interior pt (using a tolerance sacaled by dx)
@@ -1588,13 +1384,8 @@ c        write(6,*) 'vxlo'
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3-ig)*dvx
-              vy = vylo+(0.5+i4)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1,i2,i3-ig,i4) = fsamp
+              loc = i3-ig
+              u(i1,i2,loc,i4) = initialconditionatpoint(ic,i1,i2,loc,i4)
             end do
           else
             ! outflow so extrapolate
@@ -1630,13 +1421,8 @@ c        write(6,*) 'vxhi'
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3+ig)*dvx
-              vy = vylo+(0.5+i4)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1,i2,i3+ig,i4) = fsamp
+              loc = i3+ig
+              u(i1,i2,loc,i4) = initialconditionatpoint(ic,i1,i2,loc,i4)
             end do
           else
             ! outflow so extrapolate
@@ -1671,13 +1457,8 @@ c        write(6,*) 'vylo'
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3)*dvx
-              vy = vylo+(0.5+i4-ig)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1,i2,i3,i4-ig) = fsamp
+              loc = i4-ig
+              u(i1,i2,i3,loc) = initialconditionatpoint(ic,i1,i2,i3,loc)
             end do
           else
             ! outflow so extrapolate
@@ -1713,13 +1494,8 @@ c        write(6,*) 'vyhi'
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3)*dvx
-              vy = vylo+(0.5+i4+ig)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1,i2,i3,i4+ig) = fsamp
+              loc = i4+ig
+              u(i1,i2,i3,loc) = initialconditionatpoint(ic,i1,i2,i3,loc)
             end do
           else
             ! outflow so extrapolate
@@ -1747,21 +1523,18 @@ c +++++++++++++
 c
       subroutine setAdvectionBCs4DJB(
      &     u,
-     &     ng1a,ng1b,ng2a,ng2b,ng3a,ng3b,ng4a,ng4b,
      &     nl1a,nl1b,nl2a,nl2b,nl3a,nl3b,nl4a,nl4b,
      &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
      &     solution_order, nGhost,
-     &     vel1,vel2,
+     &     vel1, vel2,
      &     xloV, xhiV, dxV,
-     &     ic_phase_param,
-     &     xPeriodic, yPeriodic )
+     &     xPeriodic, yPeriodic,
+     &     ic)
 c
 c.. boundary conditions 
 c
 c.. declarations of incoming variables
       implicit none
-      integer ng1a,ng1b,ng2a,ng2b
-      integer ng3a,ng3b,ng4a,ng4b
       integer nl1a,nl1b,nl2a,nl2b
       integer nl3a,nl3b,nl4a,nl4b
       integer n1a,n1b,n2a,n2b
@@ -1772,29 +1545,16 @@ c.. declarations of incoming variables
       real vel1( nl1a:nl1b+1,nl2a:nl2b,nl3a:nl3b,nl4a:nl4b )
       real vel2( nl2a:nl2b+1,nl3a:nl3b,nl4a:nl4b,nl1a:nl1b )
       real xloV(1:4), xhiV(1:4), dxV(1:4)
-      real ic_phase_param(*)
+      integer*8 ic
 c
-c.. declrations of local variables
-      integer i1,i2,i3,i4
+c.. declartions of local variables
+      real initialconditionatpoint
+      integer i1,i2,i3,i4,loc
       integer ig,extrapEq,iSten
       real eCoeffs(1:6,1:6)
-      real alpha,beta,vx0,vy0,vflowinitx,vflowinity
       real xlo,xhi,ylo,yhi
       real dx,dy
-      real vxlo,vylo,dvx,dvy
-      real fsamp
-      real x,y,vx,vy
-      real pi
-c
-      real fx
-      real fy
-c
-      real one,four
-c
-      one = 1.0
-      four = 4.0
-c
-      pi  = four*atan(one)
+      real x,y
 c
 c fill in matrix of extrapolation coefficients (formula,coefficient)
       eCoeffs(1,1) = 1.0
@@ -1824,45 +1584,29 @@ c fill in matrix of extrapolation coefficients (formula,coefficient)
       eCoeffs(6,5) =  6.0
       eCoeffs(6,6) = -1.0
 c
-      alpha      = ic_phase_param(1)
-      beta       = ic_phase_param(2)
-      vx0        = ic_phase_param(3)
-      vy0        = ic_phase_param(4)
-      vflowinitx = ic_phase_param(5)
-      vflowinity = ic_phase_param(6)
-
       xlo  = xloV(1)
       ylo  = xloV(2)
-      vxlo = xloV(3)
-      vylo = xloV(4)
       
       xhi  = xhiV(1)
       yhi  = xhiV(2)
       
       dx  = dxV(1)
       dy  = dxV(2)
-      dvx = dxV(3)
-      dvy = dxV(4)
 c
 c.. set lower i1 boundary
       i1 = n1a
-      x  = xlo+(0.5+i1+0.5)*dx
+      x  = xlo+(0.5+i1-0.5)*dx
       if( abs(x-xlo) .lt. 0.5*dx .and. xPeriodic .ne. 1 ) then
         do i4 = nl4a,nl4b
         do i3 = nl3a,nl3b
         do i2 = nl2a,nl2b
           ! check if outflow or inflow
-          if( vel1(i1,i2,i3,i4) .lt. 0.0 ) then
+          if( vel1(i1,i2,i3,i4) .gt. 0.0 ) then
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3)*dvx
-              vy = vylo+(0.5+i4)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1-ig,i2,i3,i4) = fsamp
+              loc = i1-ig
+              u(loc,i2,i3,i4) = initialconditionatpoint(ic,loc,i2,i3,i4)
             end do
           else
             ! outflow so extrapolate
@@ -1895,13 +1639,8 @@ c.. set upper i1 boundary
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3)*dvx
-              vy = vylo+(0.5+i4)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1+ig,i2,i3,i4) = fsamp
+              loc = i1+ig
+              u(loc,i2,i3,i4) = initialconditionatpoint(ic,loc,i2,i3,i4)
             end do
           else
             ! outflow so extrapolate
@@ -1924,23 +1663,18 @@ c.. set upper i1 boundary
 c
 c.. set lower i2 boundary
       i2 = n2a
-      y  = ylo+(0.5+i2+0.5)*dy
+      y  = ylo+(0.5+i2-0.5)*dy
       if( abs(y-ylo) .lt. 0.5*dy .and. yPeriodic .ne. 1 ) then
         do i4 = nl4a,nl4b
         do i3 = nl3a,nl3b
         do i1 = nl1a,nl1b
           ! check if outflow or inflow
-          if( vel2(i2,i3,i4,i1) .lt. 0.0 ) then
+          if( vel2(i2,i3,i4,i1) .gt. 0.0 ) then
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3)*dvx
-              vy = vylo+(0.5+i4)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1,i2-ig,i3,i4) = fsamp
+              loc = i2-ig
+              u(i1,loc,i3,i4) = initialconditionatpoint(ic,i1,loc,i3,i4)
             end do
           else
             ! outflow so extrapolate
@@ -1973,13 +1707,8 @@ c.. set upper i2 boundary
             ! inflow so sample distribution fcn
             ! loop over all ghosts
             do ig = 1,nGhost
-              vx = vxlo+(0.5+i3)*dvx
-              vy = vylo+(0.5+i4)*dvy
-              fx = exp(-0.5*((alpha*(vx-vx0-vflowinitx))**2))
-              fy = exp(-0.5*((beta*(vy-vy0-vflowinity))**2))
-              fsamp = fx*fy
-              fsamp = alpha*beta/(2.0*pi)*fsamp
-              u(i1,i2+ig,i3,i4) = fsamp
+              loc = i2+ig
+              u(i1,loc,i3,i4) = initialconditionatpoint(ic,i1,loc,i3,i4)
             end do
           else
             ! outflow so extrapolate
@@ -2221,7 +1950,7 @@ c
      &     rhs,f,
      &     nd1a,nd1b,nd2a,nd2b,nd3a,nd3b,nd4a,nd4b,
      &     n1a,n1b,n2a,n2b,n3a,n3b,n4a,n4b,
-     &     vel1,vel2,
+     &     vel1, vel2,
      &     deltax,
      &     solution_order)
 c
@@ -2252,10 +1981,9 @@ c.. compute x and y derivatives
       dx = deltax(1)
       dy = deltax(2)
       do i4 = n4a,n4b
-        vy = vel2(n2a,n3a,i4,n1a)
-
         do i3 = n3a,n3b
-          vx = vel1(n1a,n2a,i3,n4a)
+          vx = vel1(n1a,n2a,i3,i4)
+          vy = vel2(n2a,i3,i4,n1a)
 
           if( solution_order .eq. 4 ) then
             do i2 = n2a,n2b
@@ -2412,6 +2140,7 @@ c          ay = vel4(n4a,i1,i2,n3a)
      *                          f(i1,i2,i3,i4),f(i1,i2,i3+1,i4),
      *                          uLeftvx,ax )
 
+              ax = vel3(n3a,i4,i1,i2) !IEO
               do i3 = n3a,n3b
                 ax = vel3(i3,i4,i1,i2)
                 call WENO43Fit4D( f(i1,i2,i3-1,i4),f(i1,i2,i3,i4),
@@ -2432,6 +2161,7 @@ c     *               -ax*(uRightvx-uLeftvx)/dvx
      *                          f(i1,i2,i3,i4),f(i1,i2,i3,i4+1),
      *                          uLeftvy,ay )
 
+              ay = vel4(n4a,i1,i2,i3) !IEO
               do i4 = n4a,n4b
                 ay = vel4(i4,i1,i2,i3)
                 call WENO43Fit4D( f(i1,i2,i3,i4-1),f(i1,i2,i3,i4),
@@ -2457,6 +2187,7 @@ c     *               -ay*(uRightvy-uLeftvy)/dvy
      *             f(i1,i2,i3+2,i4),
      *             uLeftvx,ax )
 
+              ax = vel3(n3a,i4,i1,i2) !IEO
               do i3 = n3a,n3b
                 ax = vel3(i3,i4,i1,i2)
                 call WENO65Fit4D( 
@@ -2487,6 +2218,7 @@ c     *               -ax*(uRightvx-uLeftvx)/dvx
      *             f(i1,i2,i3,i4+2),
      *             uLeftvy,ay )
 
+              ay = vel4(n4a,i1,i2,i3) !IEO
               do i4 = n4a,n4b
                 ay = vel4(i4,i1,i2,i3)
                 call WENO65Fit4D( 
@@ -2668,7 +2400,7 @@ c
       subroutine computecurrents(
      &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
-     &     xlo, xhi, dx,
+     &     velocities,
      &     u,
      &     vz,
      &     Jx, Jy, Jz)
@@ -2679,25 +2411,21 @@ c
 c.. declarations of incoming variables
       integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
-      real xlo(1:4), xhi(1:4), dx(1:4)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
       real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-      real vz(nd1a:nd1b, nd2a:nd2b, 1:1)
+      real vz(nd1a:nd1b, nd2a:nd2b)
       real Jx(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real Jy(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real Jz(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
 c
 c.. declarations of local variables
       integer i1, i2, i3, i4
-      real vx, vy, vx0, vy0, dvx, dvy
+      real vx, vy
 c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
       do i4 = n4a, n4b
-        vy = vy0+(0.5+i4)*dvy
       do i3 = n3a, n3b
-        vx = vx0+(0.5+i3)*dvx
+        vx = velocities(i3, i4, 0)
+        vy = velocities(i3, i4, 1)
       do i2 = n2a, n2b
       do i1 = n1a, n1b
 
@@ -2705,7 +2433,7 @@ c
 
         Jy(i1, i2, i3, i4) = u(i1, i2, i3, i4)*vy
 
-        Jz(i1, i2, i3, i4) = u(i1, i2, i3, i4)*vz(i1, i2, 1)
+        Jz(i1, i2, i3, i4) = u(i1, i2, i3, i4)*vz(i1, i2)
       end do
       end do
       end do
@@ -2716,12 +2444,131 @@ c
 c
 c **************
 c
-      subroutine computeke4d(
+      subroutine computeke(
+     &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
+     &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
+     &     xlo, xhi, deltax,
+     &     u,
+     &     mass,
+     &     velocities,
+     &     ke, ke_x, ke_y, px, py)
+c
+c.. function to obtain local currents
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+      integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+      real xlo(1:4), xhi(1:4), deltax(1:4)
+      real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real mass, ke, ke_x, ke_y, px, py
+c
+c.. declarations of local variables
+      integer i1, i2, i3, i4
+      real vx, vy, dx, dy, dvx, dvy, vx2, vy2, this_u
+c
+      dx  = deltax(1)
+      dy  = deltax(2)
+      dvx = deltax(3)
+      dvy = deltax(4)
+      do i4 = n4a, n4b
+      do i3 = n3a, n3b
+        vx = velocities(i3, i4, 0)
+        vx2 = vx*vx
+        vy = velocities(i3, i4, 1)
+        vy2 = vy*vy
+      do i2 = n2a, n2b
+      do i1 = n1a, n1b
+
+        this_u = u(i1, i2, i3, i4)
+        ke_x = ke_x + 0.5*this_u*vx2
+        ke_y = ke_y + 0.5*this_u*vy2
+        px = px + this_u*vx
+        py = py + this_u*vy
+      end do
+      end do
+      end do
+      end do
+      ke_x = ke_x*mass*dx*dy*dvx*dvy
+      ke_y = ke_y*mass*dx*dy*dvx*dvy
+      px = px*mass*dx*dy*dvx*dvy
+      py = py*mass*dx*dy*dvx*dvy
+      ke = ke_x+ke_y
+c
+      return
+      end
+c
+c **************
+c
+      subroutine computekemaxwell(
+     &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
+     &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
+     &     xlo, xhi, deltax,
+     &     u,
+     &     mass,
+     &     velocities, vz_in,
+     &     ke, ke_x, ke_y)
+c
+c.. function to obtain local currents
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+      integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+      real xlo(1:4), xhi(1:4), deltax(1:4)
+      real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real vz_in(nd1a:nd1b, nd2a:nd2b)
+      real mass, ke, ke_x, ke_y
+c
+c.. declarations of local variables
+      integer i1, i2, i3, i4
+      real vx, vy, vz, dx, dy, dvx, dvy, vx2, vy2, vz2,ke_z, this_u
+c
+      ke_z = 0.0
+      dx  = deltax(1)
+      dy  = deltax(2)
+      dvx = deltax(3)
+      dvy = deltax(4)
+      do i4 = n4a, n4b
+      do i3 = n3a, n3b
+        vx = velocities(i3, i4, 0)
+        vx2 = vx*vx
+        vy = velocities(i3, i4, 1)
+        vy2 = vy*vy
+      do i2 = n2a, n2b
+      do i1 = n1a, n1b
+
+        vz = vz_in(i1, i2)
+        vz2 = vz*vz
+        this_u = u(i1, i2, i3, i4)
+        ke_x = ke_x + 0.5*this_u*vx2
+        ke_y = ke_y + 0.5*this_u*vy2
+        ke_z = ke_z + 0.5*this_u*vz2
+      end do
+      end do
+      end do
+      end do
+      ke_x = ke_x*mass*dx*dy*dvx*dvy
+      ke_y = ke_y*mass*dx*dy*dvx*dvy
+      ke_z = ke_z*mass*dx*dy*dvx*dvy
+      ke = ke_x+ke_y+ke_z
+c
+      return
+      end
+c
+c **************
+c
+      subroutine computekeedot(
      &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      &     xlo, xhi, dx,
      &     u,
-     &     ke)
+     &     charge,
+     &     velocities,
+     &     ext_efield,
+     &     ke_e_dot)
 c
 c.. function to obtain local currents
       implicit none
@@ -2731,27 +2578,68 @@ c.. declarations of incoming variables
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
       real xlo(1:4), xhi(1:4), dx(1:4)
       real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-      real ke(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real ext_efield(nd1a:nd1b, nd2a:nd2b, 0:1)
+      real charge, ke_e_dot
 c
 c.. declarations of local variables
       integer i1, i2, i3, i4
-      real vx, vy, vx0, vy0, dvx, dvy, vy2, v2
+      real vx
 c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
       do i4 = n4a, n4b
-        vy = vy0+(0.5+i4)*dvy
-        vy2 = vy*vy
       do i3 = n3a, n3b
-        vx = vx0+(0.5+i3)*dvx
-        v2 = vx*vx+vy2
+        vx = velocities(i3, i4, 0)
       do i2 = n2a, n2b
       do i1 = n1a, n1b
-
-        ke(i1, i2, i3, i4) = 0.5*u(i1, i2, i3, i4)*v2
+        ke_e_dot = ke_e_dot + ext_efield(i1, i2, 0)*vx*u(i1, i2, i3, i4)
       end do
+      end do
+      end do
+      end do
+      ke_e_dot = ke_e_dot*charge*dx(1)*dx(2)*dx(3)*dx(4)
+c
+      return
+      end
+c
+c **************
+c
+      subroutine computemom4d(
+     &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
+     &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
+     &     velocities,
+     &     u, momx, momy, ke, ent)
+c
+c.. function to obtain local currents
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
+      integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real momx(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real momy(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real ke(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+      real ent(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
+c
+c.. declarations of local variables
+      integer i1, i2, i3, i4
+      real vx, vy, rlogu, utemp, v2
+c
+      do i4 = n4a, n4b
+      do i3 = n3a, n3b
+        vx = velocities(i3, i4, 0)
+        vy = velocities(i3, i4, 1)
+        v2 = vx*vx+vy*vy
+      do i2 = n2a, n2b
+         do i1 = n1a, n1b
+            utemp = u(i1, i2, i3, i4)
+            momx(i1, i2, i3, i4) = utemp*vx
+            momy(i1, i2, i3, i4) = utemp*vy
+            ke(i1, i2, i3, i4) = 0.5*u(i1, i2, i3, i4)*v2
+            rlogu = log(abs(utemp) + 1.0e-15)
+            ent(i1, i2, i3, i4) = ent(i1, i2, i3, i4) - utemp * rlogu
+         end do
       end do
       end do
       end do
@@ -2761,12 +2649,12 @@ c
 c
 c **************
 c
-      subroutine computeke2d(
+      subroutine integrate2d(
      &     nd1a, nd1b, nd2a, nd2b,
      &     n1a, n1b, n2a, n2b,
-     &     xlo, xhi, dx,
-     &     ke_2d,
-     &     ke)
+     &     dx,
+     &     integrand_2d,
+     &     integral)
 c
 c.. function to obtain local currents
       implicit none
@@ -2774,38 +2662,91 @@ c
 c.. declarations of incoming variables
       integer nd1a, nd1b, nd2a, nd2b
       integer n1a, n1b, n2a, n2b
-      real xlo(1:4), xhi(1:4), dx(1:4)
-      real ke_2d(nd1a:nd1b, nd2a:nd2b)
-      real ke
+      real dx(1:4)
+      real integrand_2d(nd1a:nd1b, nd2a:nd2b)
+      real integral
 c
 c.. declarations of local variables
       integer i1, i2
 c
-      ke = 0.0
+      integral = 0.0
       do i2 = n2a, n2b
       do i1 = n1a, n1b
 
-        ke = ke + ke_2d(i1, i2)
+        integral = integral + integrand_2d(i1, i2)
       end do
       end do
-      ke = ke*dx(1)*dx(2)
+      integral = integral*dx(1)*dx(2)
 c
       return
       end
 c
 c **************
 c
-      subroutine computekeflux4d(
+      subroutine computemom2d(
+     &     nd1a, nd1b, nd2a, nd2b,
+     &     n1a, n1b, n2a, n2b,
+     &     dx,
+     &     momx_2d, momy_2d, ke_2d, ent_2d,
+     &     momx, momy, ke, ent)
+C
+C.. Function to obtain local currents
+      implicit none
+c
+c.. declarations of incoming variables
+      integer nd1a, nd1b, nd2a, nd2b
+      integer n1a, n1b, n2a, n2b
+      real dx(1:4)
+      real momx_2d(nd1a:nd1b, nd2a:nd2b)
+      real momx
+      real momy_2d(nd1a:nd1b, nd2a:nd2b)
+      real momy
+      real ke_2d(nd1a:nd1b, nd2a:nd2b)
+      real ke
+      real ent_2d(nd1a:nd1b, nd2a:nd2b)
+      real ent
+c
+c.. declarations of local variables
+      integer i1, i2
+c
+      momx = 0.0
+      momy = 0.0
+      ke = 0.0
+      ent = 0.0
+      do i2 = n2a, n2b
+      do i1 = n1a, n1b
+        momx = momx + momx_2d(i1, i2)
+        momy = momy + momy_2d(i1, i2)
+        ke = ke + ke_2d(i1, i2)
+        ent = ent + ent_2d(i1, i2)
+      end do
+      end do
+      momx = momx*dx(1)*dx(2)
+      momy = momy*dx(1)*dx(2)
+      ke = ke*dx(1)*dx(2)
+      ent = ent*dx(1)*dx(2)
+c
+      return
+      end
+c
+c **************
+c
+      subroutine computekeflux(
      &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      &     ng1a, ng1b, ng2a, ng2b, ng3a, ng3b, ng4a, ng4b,
-     &     xlo, xhi, dx,
+     &     dx,
      &     face_flux1,
      &     face_flux2,
-     &     face_vel1,
-     &     face_vel2,
-     &     ke_flux,
-     &     dir)
+     &     face_flux3,
+     &     face_flux4,
+     &     velocities,
+     &     vxface_velocities,
+     &     vyface_velocities,
+     &     dir,
+     &     side,
+     &     mass,
+     &     ke_flux)
 c
 c.. function to compute energy flux at physical boundary
       implicit none
@@ -2814,144 +2755,139 @@ c.. declaration of incoming variables
       integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
       integer ng1a, ng1b, ng2a, ng2b, ng3a, ng3b, ng4a, ng4b
-      real xlo(1:4), xhi(1:4), dx(1:4)
+      real dx(1:4)
       real face_flux1(nd1a:nd1b+1, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real face_flux2(nd2a:nd2b+1, nd3a:nd3b, nd4a:nd4b, nd1a:nd1b)
-      real face_vel1(nd1a:nd1b+1, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-      real face_vel2(nd2a:nd2b+1, nd3a:nd3b, nd4a:nd4b, nd1a:nd1b)
-      real ke_flux(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
-      integer dir
+      real face_flux3(nd3a:nd3b+1, nd4a:nd4b, nd1a:nd1b, nd2a:nd2b)
+      real face_flux4(nd4a:nd4b+1, nd1a:nd1b, nd2a:nd2b, nd3a:nd3b)
+      real velocities(nd3a:nd3b, nd4a:nd4b, 0:1)
+      real vxface_velocities(nd3a:nd3b+1, nd4a:nd4b, 0:1)
+      real vyface_velocities(nd3a:nd3b, nd4a:nd4b+1, 0:1)
+      integer dir, side
+      real mass, ke_flux
 c
 c.. declaration of local variables
       integer i1, i2, i3, i4
-      real vx, vy, fluxx, fluxy, vx0, vy0, dvx, dvy, vx2, vy2
-c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
-      if (dir .eq. 0) then
-        do i4 = n4a, n4b
-          vy = vy0+(i4+0.5)*dvy
-          vy2 = vy*vy
-        do i3 = n3a, n3b
-        do i2 = n2a, n2b
-        do i1 = n1a, n1b
-          if (i1 .eq. ng1b) then
-            vx = face_vel1(i1+1, i2, i3, i4)
-            fluxx = face_flux1(i1+1, i2, i3, i4)
-          else
-            vx = face_vel1(i1, i2, i3, i4)
-            fluxx = face_flux1(i1, i2, i3, i4)
-          endif
-          ke_flux(i1, i2, i3, i4) = 0.5*fluxx*(vx*vx+vy2)
-        end do
-        end do
-        end do
-        end do
-      else if (dir .eq. 1) then
-        do i4 = n4a, n4b
-        do i3 = n3a, n3b
-          vx = vx0+(i3+0.5)*dvx
-          vx2 = vx*vx
-        do i2 = n2a, n2b
-        do i1 = n1a, n1b
-          if (i2 .eq. ng2b) then
-            vy = face_vel2(i2+1, i3, i4, i1)
-            fluxy = face_flux2(i2+1, i3, i4, i1)
-          else
-            vy = face_vel2(i2, i3, i4, i1)
-            fluxy = face_flux2(i2, i3, i4, i1)
-          endif
-          ke_flux(i1, i2, i3, i4) = 0.5*fluxy*(vx2+vy*vy)
-        end do
-        end do
-        end do
-        end do
-      endif
-c
-      return
-      end
-c
-c **************
-c
-      subroutine computekeflux2d(
-     &     nd1a, nd1b, nd2a, nd2b,
-     &     n1a, n1b, n2a, n2b,
-     &     ng1a, ng1b, ng2a, ng2b,
-     &     xlo, xhi, dx,
-     &     ke_flux_2d,
-     &     ke_flux,
-     &     dir, side)
-c
-c.. function to obtain local currents
-      implicit none
-c
-c.. declarations of incoming variables
-      integer nd1a, nd1b, nd2a, nd2b
-      integer n1a, n1b, n2a, n2b
-      integer ng1a, ng1b, ng2a, ng2b
-      real xlo(1:4), xhi(1:4), dx(1:4)
-      real ke_flux_2d(nd1a:nd1b, nd2a:nd2b)
-      real ke_flux
-      integer dir, side
-c
-c.. declarations of local variables
-      integer i1, i2
-      integer i1lo, i1hi, i2lo, i2hi
       real ddir
-      integer dosum
+      integer faceidx, dosum
+      real vx, vy, fluxx, fluxy, fluxvx, fluxvy
+      real v2
 c
       dosum = 1
       if (dir .eq. 0) then
-        i2lo = n2a
-        i2hi = n2b
-        ddir = dx(2)
+        ddir = dx(2)*dx(3)*dx(4)
         if (side .eq. 0) then
           if (n1a .eq. ng1a) then
-            i1lo = n1a
-            i1hi = n1a
+            faceidx = n1a
           else
             dosum = 0
           endif
         else
           if (n1b .eq. ng1b) then
-            i1lo = n1b
-            i1hi = n1b
+            faceidx = n1b+1
           else
             dosum = 0
           endif
         endif
-      else
-        i1lo = n1a
-        i1hi = n1b
-        ddir = dx(1)
+        if (dosum .eq. 1) then
+          do i4 = n4a, n4b
+          do i3 = n3a, n3b
+            vx = velocities(i3, i4, 0)
+            vy = velocities(i3, i4, 1)
+            v2 = vx*vx+vy*vy
+          do i2 = n2a, n2b
+            fluxx = face_flux1(faceidx, i2, i3, i4)
+            ke_flux = ke_flux + 0.5*fluxx*v2
+          end do
+          end do
+          end do
+        endif
+      else if (dir .eq. 1) then
+        ddir = dx(1)*dx(3)*dx(4)
         if (side .eq. 0) then
           if (n2a .eq. ng2a) then
-            i2lo = n2a
-            i2hi = n2a
+            faceidx = n2a
           else
             dosum = 0
           endif
         else
           if (n2b .eq. ng2b) then
-            i2lo = n2b
-            i2hi = n2b
+            faceidx = n2b+1
           else
             dosum = 0
           endif
         endif
+        if (dosum .eq. 1) then
+          do i4 = n4a, n4b
+          do i3 = n3a, n3b
+            vx = velocities(i3, i4, 0)
+            vy = velocities(i3, i4, 1)
+            v2 = vx*vx+vy*vy
+          do i1 = n1a, n1b
+            fluxy = face_flux2(faceidx, i3, i4, i1)
+            ke_flux = ke_flux + 0.5*fluxy*v2
+          end do
+          end do
+          end do
+        endif
+      else if (dir .eq. 2) then
+        ddir = dx(1)*dx(2)*dx(4)
+        if (side .eq. 0) then
+          if (n3a .eq. ng3a) then
+            faceidx = n3a
+          else
+            dosum = 0
+          endif
+        else
+          if (n3b .eq. ng3b) then
+            faceidx = n3b + 1
+          else
+            dosum = 0
+          endif
+        endif
+        if (dosum .eq. 1) then
+          do i4 = n4a, n4b
+            vx = vxface_velocities(faceidx, i4, 0)
+            vy = vxface_velocities(faceidx, i4, 1)
+            v2 = vx*vx+vy*vy
+          do i2 = n2a, n2b
+          do i1 = n1a, n1b
+            fluxvx = face_flux3(faceidx, i4, i1, i2)
+            ke_flux = ke_flux + 0.5*fluxvx*v2
+          end do
+          end do
+          end do
+        endif
+      else if (dir .eq. 3) then
+        ddir = dx(1)*dx(2)*dx(3)
+        if (side .eq. 0) then
+          if (n4a .eq. ng4a) then
+            faceidx = n4a
+          else
+            dosum = 0
+          endif
+        else
+          if (n4b .eq. ng4b) then
+            faceidx = n4b + 1
+          else
+            dosum = 0
+          endif
+        endif
+        if (dosum .eq. 1) then
+          do i3 = n3a, n3b
+            vx = vyface_velocities(i3, faceidx, 0)
+            vy = vyface_velocities(i3, faceidx, 1)
+            v2 = vx*vx+vy*vy
+          do i2 = n2a, n2b
+          do i1 = n1a, n1b
+            fluxvy = face_flux4(faceidx, i1, i2, i3)
+            ke_flux = ke_flux + 0.5*fluxvy*v2
+          end do
+          end do
+          end do
+        endif
       endif
-      ke_flux = 0.0
-      if (dosum .eq. 1) then
-        do i2 = i2lo, i2hi
-        do i1 = i1lo, i1hi
-
-          ke_flux = ke_flux + ke_flux_2d(i1, i2)
-        end do
-        end do
-        ke_flux = ke_flux*ddir
-      endif
+      ke_flux = ke_flux*mass*ddir
 c
       return
       end
@@ -2962,11 +2898,13 @@ c
      &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
      &     ng1a, ng1b, ng2a, ng2b, ng3a, ng3b, ng4a, ng4b,
-     &     xlo, xhi, dx,
+     &     dx,
      &     face_flux3,
      &     face_flux4,
      &     ke_flux,
      &     mass,
+     &     vxface_velocities,
+     &     vyface_velocities,
      &     side,
      &     dir)
 c
@@ -2977,59 +2915,76 @@ c.. declaration of incoming variables
       integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
       integer ng1a, ng1b, ng2a, ng2b, ng3a, ng3b, ng4a, ng4b
-      real xlo(1:4), xhi(1:4), dx(1:4)
+      real dx(1:4)
       real face_flux3(nd3a:nd3b+1, nd4a:nd4b, nd1a:nd1b, nd2a:nd2b)
       real face_flux4(nd4a:nd4b+1, nd1a:nd1b, nd2a:nd2b, nd3a:nd3b)
       real ke_flux(nd1a:nd1b, nd2a:nd2b)
       real mass
+      real vxface_velocities(nd3a:nd3b+1, nd4a:nd4b, 0:1)
+      real vyface_velocities(nd3a:nd3b, nd4a:nd4b+1, 0:1)
       integer side, dir
 c
 c.. declaration of local variables
-      integer i1, i2, i3, i4
-      real vx, vy, ddir, vx0, vy0, dvx, dvy, vx2, vy2, v2
+      integer i1, i2, i3, i4, dosum
+      real vx, vy, ddir, v2
 c
-      vx0 = xlo(3)
-      vy0 = xlo(4)
-      dvx = dx(3)
-      dvy = dx(4)
+      dosum = 1
       if (dir .eq. 2) then
         ddir = dx(4)
         if (side .eq. 0) then
-          i3 = ng3a
+          if (n3a .eq. ng3a) then
+            i3 = ng3a
+          else
+            dosum = 0
+          endif
         else
-          i3 = ng3b+1
+          if (n3b .eq. ng3b) then
+            i3 = ng3b+1
+          else
+            dosum = 0
+          endif
         endif
-        vx = vx0+i3*dvx
-        vx2 = vx*vx
-        do i4 = n4a, n4b
-          vy = vy0+(i4+0.5)*dvy
-          v2 = vx2+vy*vy
-        do i2 = n2a, n2b
-        do i1 = n1a, n1b
-          ke_flux(i1, i2) = ke_flux(i1, i2)+
-     *      0.5*mass*face_flux3(i3, i4, i1, i2)*v2*ddir
-        end do
-        end do
-        end do
+        if (dosum .eq. 1) then
+          do i4 = n4a, n4b
+            vx = vxface_velocities(i3, i4, 0)
+            vy = vxface_velocities(i3, i4, 1)
+            v2 = vx*vx+vy*vy
+          do i2 = n2a, n2b
+          do i1 = n1a, n1b
+            ke_flux(i1, i2) = ke_flux(i1, i2)+
+     *        0.5*mass*face_flux3(i3, i4, i1, i2)*v2*ddir
+          end do
+          end do
+          end do
+        endif
       else if (dir .eq. 3) then
         ddir = dx(3)
         if (side .eq. 0) then
-          i4 = ng4a
+          if (n4a .eq. ng4a) then
+            i4 = ng4a
+          else
+            dosum = 0
+          endif
         else
-          i4 = ng4b+1
+          if (n4b .eq. ng4b) then
+            i4 = ng4b+1
+          else
+            dosum = 0
+          endif
         endif
-        vy = vy0+i4*dvy
-        vy2 = vy*vy
-        do i3 = n3a, n3b
-          vx = vx0+(i3+0.5)*dvx
-          v2 = vx*vx+vy2
-        do i2 = n2a, n2b
-        do i1 = n1a, n1b
-          ke_flux(i1, i2) = ke_flux(i1, i2)+
-     *      0.5*mass*face_flux4(i4, i1, i2, i3)*v2*ddir
-        end do
-        end do
-        end do
+        if (dosum .eq. 1) then
+          do i3 = n3a, n3b
+            vx = vyface_velocities(i3, i4, 0)
+            vy = vyface_velocities(i3, i4, 1)
+            v2 = vx*vx+vy*vy
+          do i2 = n2a, n2b
+          do i1 = n1a, n1b
+            ke_flux(i1, i2) = ke_flux(i1, i2)+
+     *        0.5*mass*face_flux4(i4, i1, i2, i3)*v2*ddir
+          end do
+          end do
+          end do
+        endif
       endif
 c
       return
@@ -3040,11 +2995,9 @@ c
       subroutine appendkrook(
      &     nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b,
      &     n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b,
-     &     xlo, xhi, deltax,
-     &     xlo_krook, xhi_krook,
-     &     krookPower, krookCoeff,
-     &     u,
-     &     rhs)
+     &     dt,
+     &     ic,
+     &     nu, u, rhs)
 c
 c.. function to append krook layer damping to distribution function
       implicit none
@@ -3052,123 +3005,25 @@ c
 c.. declarations of incoming variables
       integer nd1a, nd1b, nd2a, nd2b, nd3a, nd3b, nd4a, nd4b
       integer n1a, n1b, n2a, n2b, n3a, n3b, n4a, n4b
-      real xlo(1:4), xhi(1:4), deltax(1:4)
-      real xlo_krook(1:2), xhi_krook(1:2)
-      real krookPower, krookCoeff
+      real dt
+      integer*8 ic
+      real nu(nd1a:nd1b, nd2a:nd2b)
       real u(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
       real rhs(nd1a:nd1b, nd2a:nd2b, nd3a:nd3b, nd4a:nd4b)
 c
 c.. declarations of local variables
-      real g1, g2, g3
-      real w1, w2, w3
-      real x1, x2, x3, x4
-      real vxt1, vxt2, vxt3
-      real vyt1, vyt2, vyt3
-      real fx1, fx2, fx3
-      real fy1, fy2, fy3
-      real integral1, integral2, integral3
-      real f0, pi, xi, nu, eta, nux, nuy
-      real xa, xb, ya, yb
+      real f0, initialconditionatpoint
       integer i1, i2, i3, i4
-      real x0, y0, vx0, vy0, dx, dy, dvx, dvy, xmax, ymax
-      real x0_krook, y0_krook, xmax_krook, ymax_krook
 c
-      real one, four
-c
-      one = 1.0
-      four = 4.0
-c
-      pi = four*atan(one)
-c
-      ! define Gaussian quadrature points
-      g1 = -0.5*sqrt(3.0/5.0)
-      g2 = 0.0
-      g3 = 0.5*sqrt(3.0/5.0)
-c
-      ! define Gaussian quadrature weights
-      w1 = 5.0/18.0
-      w2 = 8.0/18.0
-      w3 = 5.0/18.0
-c
-      x0 = xlo(1)
-      y0 = xlo(2)
-      vx0 = xlo(3)
-      vy0 = xlo(4)
-      dx = deltax(1)
-      dy = deltax(2)
-      dvx = deltax(3)
-      dvy = deltax(4)
-      xmax = xhi(1)
-      ymax = xhi(2)
-      x0_krook = xlo_krook(1)
-      y0_krook = xlo_krook(2)
-      xmax_krook = xhi_krook(1)
-      ymax_krook = xhi_krook(2)
       do i4 = n4a, n4b
-        x4 = vy0+(0.5+i4)*dvy
         do i3 = n3a, n3b
-          x3 = vx0+(0.5+i3)*dvx
-
-          vxt1 = x3+g1*dvx
-          vxt2 = x3+g2*dvx
-          vxt3 = x3+g3*dvx
-
-          vyt1 = x4+g1*dvy
-          vyt2 = x4+g2*dvy
-          vyt3 = x4+g3*dvy
-
-          fx1 = exp(-0.5*(vxt1**2))
-          fx2 = exp(-0.5*(vxt2**2))
-          fx3 = exp(-0.5*(vxt3**2))
-
-          fy1 = exp(-0.5*(vyt1**2))
-          fy2 = exp(-0.5*(vyt2**2))
-          fy3 = exp(-0.5*(vyt3**2))
-
-          integral1 = w1*(fx1*fy1)+w2*(fx2*fy1)+w3*(fx3*fy1)
-          integral2 = w1*(fx1*fy2)+w2*(fx2*fy2)+w3*(fx3*fy2)
-          integral3 = w1*(fx1*fy3)+w2*(fx2*fy3)+w3*(fx3*fy3)
-          f0 = w1*integral1+w2*integral2+w3*integral3
-          f0 = f0/(2.0*pi)
-
           do i2 = n2a, n2b
-            x2 = y0+(0.5+i2)*dy
-
-            if (x2 .lt. y0_krook) then
-              ya = y0_krook
-              yb = y0
-              eta = (x2-ya)/(yb-ya)
-              nuy = eta**krookPower
-            else if (x2 .gt. ymax_krook) then
-              ya = ymax_krook
-              yb = ymax
-              eta = (x2-ya)/(yb-ya)
-              nuy = eta**krookPower
-            else
-              nuy = 0.0
-            end if
-
             do i1 = n1a, n1b
-              x1 = x0+(0.5+i1)*dx
-
-              if (x1 .lt. x0_krook) then
-                xa = x0_krook
-                xb = x0
-                xi = (x1-xa)/(xb-xa)
-                nux = xi**krookPower
-              else if (x1 .gt. xmax_krook) then
-                xa = xmax_krook
-                xb = xmax
-                xi = (x1-xa)/(xb-xa)
-                nux = xi**krookPower
-              else
-                nux = 0.0
+              if (nu(i1, i2) .ne. 0.0) then
+                f0 = initialconditionatpoint(ic, i1, i2, i3, i4)
+                rhs(i1, i2, i3, i4) = rhs(i1, i2, i3, i4)-
+     *            nu(i1, i2)/dt*(u(i1, i2, i3, i4)-f0)
               end if
-
-              nu = krookCoeff*((1.0-nuy)*nux+nuy)
-
-              rhs(i1, i2, i3, i4) =
-     *          rhs(i1, i2, i3, i4)-nu*(u(i1, i2, i3, i4)-f0)
 
             end do
           end do

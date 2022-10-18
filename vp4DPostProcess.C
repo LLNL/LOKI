@@ -1,90 +1,95 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
-#include "Overture.h"
-#include "HDF_DataBase.h"
-#include "ShowFileReader.h"
-#include "ParallelUtility.h"
+#include "RestartReader.H"
+#include "RestartWriter.H"
+#include "FieldReader.H"
+#include "FieldWriter.H"
+#include "TimeHistReader.H"
+#include "TimeHistWriter.H"
 #include "KineticSpeciesPtrVect.H"
+#include "Maxwell.H"
+#include "Poisson.H"
+#include <deque>
 #include <sstream>
+#include <sys/stat.h>
 
 using namespace Loki;
 
 void
 parseCommandLine(
-   aString& a_prefix,
+   string& a_prefix,
    bool& a_skip_dists,
+   deque<int>& a_process_dists,
+   bool& a_coll,
    int a_argc,
    char* a_argv[])
 {
    int len(0);
-   aString line;
+   string line;
    bool found_prefix = false;
    for (int i = 1; i < a_argc; ++i) {
       line = a_argv[i];
 
       // If this is the -prefix arg, then get the prefix and set a_prefix.
-      len = line.matches("-prefix=");
-      if (len) {
-        a_prefix = line(len, static_cast<int>(line.length())-1);
-        printF("\n\n*** using the prefix %s\n\n", (const char*)a_prefix);
+      if (line.substr(0, 8) == "-prefix=") {
+        a_prefix = line.substr(8);
+        Loki_Utilities::printF("\n\n*** using the prefix %s\n\n",
+          a_prefix.c_str());
         found_prefix = true;
         continue;
       }
 
       // If this is the -skip_dists arg, then set a_skip_dists.
-      len = line.matches("-skip_dists");
-      if (len) {
+      if (line.substr(0, 11) == "-skip_dists") {
          a_skip_dists = true;
          continue;
       }
 
+      // If this is the -process_dists arg, then set the code up to process
+      // specific distribution dumps.
+      if (line.substr(0, 15) == "-process_dists=") {
+         if (a_skip_dists) {
+            Loki_Utilities::printF("Error: Attempting to both skip and process specific dists\n");
+            exit(-1);
+         }
+         string dist_list = line.substr(15);
+         while (!dist_list.empty()) {
+            size_t pos = dist_list.find(",");
+            string dist_num = dist_list.substr(0, pos);
+            a_process_dists.push_back(atoi(dist_num.c_str()));
+            if (pos == string::npos) {
+               dist_list.erase(0, pos);
+            }
+            else {
+               dist_list.erase(0, pos+1);
+            }
+         }
+         continue;
+      }
+
+      // If this is the -coll arg, then set a_coll.
+      if (line.substr(0, 5) == "-coll") {
+         a_coll = true;
+         continue;
+      }
+
       // If it's neither of the above print error and exit.
-      printF("Error: unknonwn command line option ... quitting1\n");
-      printF("Usage: 'mpirun -np N vp4DPostProcess -prefix=<prefix> [-skip_dists]'\n");
-      Overture::finish();
+      Loki_Utilities::printF("Error: unknonwn command line option ... quitting\n");
+      Loki_Utilities::printF("Usage: 'vp4DPostProcess -prefix=<prefix> [-skip_dists]'\n");
       exit(-1);
    }
 
    // The prefix is required.  If none supplied print error and exit.
    if (!found_prefix) {
-      printF("Error: missing required -prefix command ... quitting1\n");
-      printF("Usage: 'mpirun -np N vp4DPostProcess -prefix=<prefix> [-skip_dists]'\n");
-      Overture::finish();
+      Loki_Utilities::printF("Error: missing required -prefix command ... quitting\n");
+      Loki_Utilities::printF("Usage: 'vp4DPostProcess -prefix=<prefix> [-skip_dists]'\n");
       exit(-1);
    }
    return;
@@ -93,91 +98,114 @@ parseCommandLine(
 
 void
 writeTimeHistories(
-   const aString& a_prefix,
-   bool a_isMaxwell,
-   int a_species_list_size)
+   const string& a_prefix,
+   int a_isMaxwell,
+   bool a_isCollision,
+   vector<string>& a_species_names)
 {
-   char buffer[100];
-   aString showFileName;
+   // Find the last time history file written.  This contains all the
+   // accumulated time histories.  Read them and write to the post processed
+   // time history file.
+   vector<vector<double> > time_hists;
+   vector<double> time_hist_times;
+   vector<string> time_hist_names;
+   int time_hist_idx = 0;
+   int tmp_idx = 0;
+   ostringstream this_time_hist_file_name;
+   Loki_Utilities::printF("\n\n\n\n STARTING TIME HISTORIES*******\n\n\n\n");
 
-   // Try to open the root show file and get the first frame which should exist.
-   // If unsuccessful, exit.
-   sprintf(buffer, "%s.show", (const char*)a_prefix);
-   showFileName = buffer;
-   printF("\nreading from %s\n", (const char*)showFileName);
-   ShowFileReader show;
-
-   show.open(showFileName);
-
-   int numProbes;
-   HDF_DataBase* dbp;
-   dbp = 0;
-   dbp = show.getFrame(1);
-   if (dbp == 0) {
-      OV_ABORT("Can not get frame from show file");
+   // Find the last time history file.
+   while (true) {
+      // Construct a time history file name and try to open it.  If it can't
+      // be opened then we've exhausted all the time history files.
+      struct stat stat_buf;
+      if (a_isCollision) {
+         this_time_hist_file_name << a_prefix << "_coll.time_hists_" << tmp_idx
+                                  << ".hdf";
+      }
+      else {
+         this_time_hist_file_name << a_prefix << ".time_hists_" << tmp_idx
+                                  << ".hdf";
+      }
+      if (stat(this_time_hist_file_name.str().c_str(), &stat_buf) == 0) {
+         time_hist_idx = tmp_idx;
+         ++tmp_idx;
+         this_time_hist_file_name.str("");
+      }
+      else {
+         this_time_hist_file_name.str("");
+         break;
+      }
    }
 
-   // Root show file looks good.  Read the number of probes and their locations.
-   dbp->get(numProbes, "numProbes");
-   printF("nProbes=%i\n", numProbes);
-   RealArray fieldProbes(2, numProbes);
-   IntegerArray probes_x_index(numProbes);
-   IntegerArray probes_y_index(numProbes);
-   char buff[12];
-   for (int ip(0); ip < numProbes; ++ip) {
-      sprintf(buff, "ix_pos%i", ip);
-      dbp->get(probes_x_index(ip), buff);
-
-      sprintf(buff, "iy_pos%i", ip);
-      dbp->get(probes_y_index(ip), buff);
-   }
-
-   // Read the number of tracking particles.
-   int numTrackingParticles;
-   dbp->get(numTrackingParticles, "numTrackingParticles");
-   printF("nTrackingParticles=%i\n", numTrackingParticles);
-
-   // We're going to get the time histories from frame series 0.  Figure out
-   // how many time histories there are.
-   show.setCurrentFrameSeries(0);
-   aString name;
-   RealArray seriesTime, seriesValue;
-   int maxComponentName1;
-   int maxComponentName2 = 1;
-   if (a_isMaxwell) {
-      maxComponentName1 = 12 + (6 + a_species_list_size) * numProbes +
-         numTrackingParticles * 4 + a_species_list_size * 5;
+   // Now open the last time history file.
+   if (a_isCollision) {
+      this_time_hist_file_name << a_prefix << "_coll.time_hists_"
+                               << time_hist_idx << ".hdf";
    }
    else {
-      maxComponentName1 =  5 + 2 * numProbes +
-         numTrackingParticles * 4 + a_species_list_size * 5;
+      this_time_hist_file_name << a_prefix << ".time_hists_"
+                               << time_hist_idx << ".hdf";
    }
-   aString componentName1[maxComponentName1], componentName2[maxComponentName2];
+   TimeHistReader th_reader(this_time_hist_file_name.str());
 
-   // Get the time history.
-   show.getSequence(0,
-      name,
-      seriesTime,
-      seriesValue,
-      componentName1,
-      maxComponentName1,
-      componentName2,
-      maxComponentName2);
+   // Read the number of probes and the number of tracking particles from the
+   // file and figure out the number of time histories.  Allocate the vectors
+   // of post-processed time histories and time history names.  Fill in the
+   // time history names.
+   int numProbes = 0, numTrackingParticles = 0;
+   if (!a_isCollision) {
+      th_reader.readNumProbes(numProbes);
+      th_reader.readNumTrackingParticles(numTrackingParticles);
+   }
+   if (a_isMaxwell == 1) {
+      if (a_isCollision) {
+         Maxwell::buildCollTimeHistoryNames(a_species_names, time_hist_names);
+      }
+      else {
+         Maxwell::buildTimeHistoryNames(numProbes,
+                                        numTrackingParticles,
+                                        a_species_names,
+                                        time_hist_names);
+      }
+   }
+   else {
+      if (a_isCollision) {
+         Poisson::buildCollTimeHistoryNames(a_species_names, time_hist_names);
+      }
+      else {
+         Poisson::buildTimeHistoryNames(numProbes,
+                                        numTrackingParticles,
+                                        a_species_names,
+                                        time_hist_names);
+      }
+   }
 
-   // Create the post-processed time history file and write the probe locations,
-   // time histories, and history times to it.
-   sprintf(buffer, "%s_timeSeries.hdf", (const char*)a_prefix);
-   HDF_DataBase db;
+   // Read from this time history file each time sequence and the times at
+   // which they were taken.
+   int num_time_hists = static_cast<int>(time_hist_names.size());
+   time_hists.resize(num_time_hists);
+   for (int th = 0; th < num_time_hists; ++th) {
+      Loki_Utilities::printF("Processing time history %s\n",
+         time_hist_names[th].c_str());
+      th_reader.readTimeHistory(time_hist_names[th], time_hists[th]);
+   }
+   th_reader.readTimeHistory("sequence_times", time_hist_times);
 
-   db.mount(buffer, "I");                      // mount, I = initialize
-   db.put(probes_x_index, "x_index");
-   db.put(probes_y_index, "y_index");
-   db.put(seriesValue, "series_data");
-   db.put(seriesTime, "series_time");
+   // Create the post processed time history file.
+   ostringstream pp_time_hist_file_name;
+   if (a_isCollision) {
+      pp_time_hist_file_name << a_prefix << "_coll_timeSeries.hdf";
+   }
+   else {
+      pp_time_hist_file_name << a_prefix << "_timeSeries.hdf";
+   }
+   TimeHistWriter th_writer(pp_time_hist_file_name.str(), time_hist_times);
 
-   db.unmount();
-
-   show.close();
+   // Write each time history to the post_processed time history file.
+   for (int th = 0; th < num_time_hists; ++th) {
+      th_writer.writeTimeHistory(time_hist_names[th], time_hists[th]);
+   }
 
    return;
 }
@@ -185,188 +213,174 @@ writeTimeHistories(
 
 void
 writeFields(
-   const aString& a_prefix,
-   int nGhost,
-   bool isMaxwell,
-   int num_kinetic_species,
-   const std::vector<string> species_names)
+   const string& a_prefix,
+   int nx,
+   int ny,
+   int a_nGhost,
+   int a_isMaxwell,
+   bool a_isCollision,
+   const vector<string>& a_species_names,
+   int a_plot_ke_vel_bdy_flux)
 {
-   char buffer[100];
-   aString showFileName;
+   Loki_Utilities::printF("\n\n\n\n STARTING FIELDS*******\n\n\n\n");
+   int nx_w_ghost = nx+2*a_nGhost;
 
-   // Open the root show file.
-   printF("\n\n\n\n STARTING*******\n\n\n\n");
-   sprintf(buffer, "%s.show", (const char*)a_prefix);
-   showFileName = buffer;
-   printF("\nreading from %s\n", (const char*)showFileName);
-   ShowFileReader show;
-
-   show.open(showFileName);
-
-   CompositeGrid cg;
-   realCompositeGridFunction u;
-   int solnNumber = 1;
-   int NX, NY;
-
-   // Get the number of frames.  This is the number of time steps for each plot.
-   // Then get the first solution (it reads the complete solution which is
-   // splayed across multiple show files) and the extents of that solution which
-   // must include the number of ghosts.
-   int numberOfFrames = show.getNumberOfFrames();
-
-   int nd1a, nd1b, nd2a, nd2b;
-   int n1a, n1b, n2a, n2b;
-   real x1a, x1b, x2a, x2b;
-   real t, dt;
-   show.getASolution(solnNumber, cg, u);
-   cg.update();
-
-   nd1a = u[0].getBase (axis1);
-   nd1b = u[0].getBound(axis1);
-   nd2a = u[0].getBase (axis2);
-   nd2b = u[0].getBound(axis2);
-
-   n1a = nd1a+nGhost;
-   n1b = nd1b-nGhost;
-   n2a = nd2a+nGhost;
-   n2b = nd2b-nGhost;
-
-   NX = n1b-n1a+1;
-   NY = n2b-n2a+1;
-
-   // Get the grid vertices which is common to all plots and the upper and lower
-   // x and y coordinates.
-   int grid = 0; // there is only 1 grid here since this is not a compisite grid example
-   const realArray& vertex = cg[grid].vertex();
-   x1a = vertex(n1a, n2a, 0, axis1);
-   x1b = vertex(n1b, n2a, 0, axis1);
-   x2a = vertex(n1a, n2a, 0, axis2);
-   x2b = vertex(n1a, n2b, 0, axis2);
-
-   // Create x and y ranges based on the number of x and y grid points.  Also
-   // create a range for the number of plot times.  Then create arrays to hold
-   // the x and y coordinates and the plot times.
-   Range RX(0, NX-1), RY(0, NY-1), RT(0, numberOfFrames-1);
-   RealArray x(RX), y(RY), time(RT);
-
-   // Generate the coordinates.
-   real dx = (x1b-x1a)/(NX-1);
-   real dy = (x2b-x2a)/(NY-1);
-   for (int i1 = 0; i1 < NX; ++i1) {
-      x(i1) = x1a+(i1)*dx;
+   // Try to open the first field file and get the total number of time slices
+   // from it.
+   ostringstream file_name;
+   if (a_isCollision) {
+      file_name << a_prefix << "_coll.fields_" << 0 << ".hdf";
    }
-   for (int i2 = 0; i2 < NY; ++i2) {
-      y(i2) = x2a+(i2)*dy;
+   else {
+      file_name << a_prefix << ".fields_" << 0 << ".hdf";
    }
+   int total_num_time_slices;
+   {
+      FieldReader field_reader(file_name.str());
+      field_reader.readTotalNumTimeSlices(total_num_time_slices);
+   }
+   file_name.str("");
 
-   // Open the post-processed fields file.
-   sprintf(buffer, "%s_fields.hdf", (const char*)a_prefix);
-   HDF_DataBase db;
-
-   db.mount(buffer, "I");                      // mount, I = initialize
-
-   HDF_DataBase* dbp;
-
-   // Generate plot names for the case of a Maxwell or a Poisson system.  This
-   // is not so nice as we need to keep this sync'd up with their respective
-   // plot methods.
-   int numPlots;
-   char** plotNames;
-   if (isMaxwell) {
-      numPlots = 6+5*num_kinetic_species;
-      plotNames = new char* [numPlots];
-      for (int plot = 0; plot < numPlots; ++plot) {
-         plotNames[plot] = new char [80];
+   // See how many field files exist.
+   int num_field_files = 0;
+   while(true) {
+      struct stat stat_buf;
+      if (a_isCollision) {
+         file_name << a_prefix << "_coll.fields_" << num_field_files << ".hdf";
       }
-      sprintf(plotNames[0], "EX");
-      sprintf(plotNames[1], "EY");
-      sprintf(plotNames[2], "EZ");
-      sprintf(plotNames[3], "BX");
-      sprintf(plotNames[4], "BY");
-      sprintf(plotNames[5], "BZ");
-      for (int ks = 0; ks < num_kinetic_species; ++ks) {
-         sprintf(plotNames[6+5*ks], "%s VZ",
-                 species_names[ks].c_str());
-         sprintf(plotNames[7+5*ks], "%s ke flux vx lo",
-                 species_names[ks].c_str());
-         sprintf(plotNames[8+5*ks], "%s ke flux vx hi",
-                 species_names[ks].c_str());
-         sprintf(plotNames[9+5*ks], "%s ke flux vy lo",
-                 species_names[ks].c_str());
-         sprintf(plotNames[10+5*ks], "%s ke flux vy hi",
-                 species_names[ks].c_str());
+      else {
+         file_name << a_prefix << ".fields_" << num_field_files << ".hdf";
+      }
+      if (stat(file_name.str().c_str(), &stat_buf) != 0) {
+         break;
+      }
+      ++num_field_files;
+      file_name.str("");
+   }
+   file_name.str("");
+
+   // Generate plot names depending on if it is a Maxwell or a Poisson system.
+   vector<string> plot_names;
+   if (a_isMaxwell == 1) {
+      if (a_isCollision) {
+         Maxwell::buildCollPlotNames(a_species_names, plot_names);
+      }
+      else {
+         Maxwell::buildPlotNames(a_plot_ke_vel_bdy_flux == 1,
+                                 a_species_names,
+                                 plot_names);
       }
    }
    else {
-      numPlots = 2+4*num_kinetic_species;
-      plotNames = new char* [numPlots];
-      for (int plot = 0; plot < numPlots; ++plot) {
-         plotNames[plot] = new char [80];
+      if (a_isCollision) {
+         Poisson::buildCollPlotNames(a_species_names, plot_names);
       }
-      sprintf(plotNames[0], "EX");
-      sprintf(plotNames[1], "EY");
-      for (int ks = 0; ks < num_kinetic_species; ++ks) {
-         sprintf(plotNames[2+4*ks], "%s ke flux vx lo",
-                 species_names[ks].c_str());
-         sprintf(plotNames[3+4*ks], "%s ke flux vx hi",
-                 species_names[ks].c_str());
-         sprintf(plotNames[4+4*ks], "%s ke flux vy lo",
-                 species_names[ks].c_str());
-         sprintf(plotNames[5+4*ks], "%s ke flux vy hi",
-                 species_names[ks].c_str());
+      else {
+         Poisson::buildPlotNames(a_plot_ke_vel_bdy_flux == 1,
+                                 a_species_names,
+                                 plot_names);
       }
    }
+   int num_plots = static_cast<int>(plot_names.size());
 
-   // Now we know how may plots to read.  Loop through them and read each time
-   // step for each plot.
-   RealArray plotData(RT, RY, RX);
-   for (int plot = 0; plot < numPlots; ++plot) {
-      show.setCurrentFrameSeries(plot);
-      for (int soln = 1; soln <= numberOfFrames; ++soln) {
-         solnNumber = soln;
-         show.getASolution(solnNumber, cg, u);
+   // Create the writer for the post-processed field file.
+   if (a_isCollision) {
+      file_name << a_prefix << "_coll_fields.hdf";
+   }
+   else {
+      file_name << a_prefix << "_fields.hdf";
+   }
+   FieldWriter pp_writer(file_name.str(),
+      plot_names,
+      nx,
+      ny,
+      total_num_time_slices);
+   file_name.str("");
 
-         // We need to get the plot times and dt once for the first plot.
-         // Seems like this could be done outside these loops.  Also seems like
-         // we never use dt.
-         if (plot == 0) {
-            dbp = 0;
-            dbp = show.getFrame(soln);
-            if (dbp == 0) {
-               OV_ABORT("Can not get frame from show file");
-            }
-            dbp->get(t, "time");
-            dbp->get(dt, "dt");
-            time(soln-1) = t;
+   // Now we know how many plots to read from each field file.  Loop through the
+   // field files, read each plot and plot time and save them to the post
+   // processed field file.
+   vector<double> plot_time_slice;
+   double* plot_time_slice_no_ghost = new double[nx*ny];
+   vector<double> plot_times;
+   int which_time_slice = 0;
+   for (int file = 0; file < num_field_files; ++file) {
+      // Get a reader for a field file.
+      if (a_isCollision) {
+         file_name << a_prefix << "_coll.fields_" << file << ".hdf";
+      }
+      else {
+         file_name << a_prefix << ".fields_" << file << ".hdf";
+      }
+      {
+         FieldReader field_reader(file_name.str());
+         file_name.str("");
+
+         // We only need to get the x and y coordinates from the 1st field file.
+         if (file == 0) {
+            vector<double> x_coords;
+            vector<double> y_coords;
+            field_reader.readCoords(x_coords, y_coords);
+            pp_writer.writeCoords(x_coords, y_coords);
          }
 
-         // Move the grid function plot data into our plotData array.
-         for (int i1 = 0; i1 < NX; ++i1) {
-            for (int i2 = 0; i2 < NY; ++i2) {
-               plotData(soln-1, i2, i1) = u[0](i1, i2);
+         // Read the number of time slices in this field file.
+         int num_time_slices_in_this_file;
+         field_reader.readNumTimeSlicesInFile(num_time_slices_in_this_file);
+
+         // Now loop over all the time slices in this field file.
+         // Read the info for each time slice and write it to the post processed
+         // field file.
+         for (int time_slice = 0;
+              time_slice < num_time_slices_in_this_file;
+              ++time_slice) {
+            double time;
+            ostringstream dset_name;
+            dset_name << "time_slice_" << which_time_slice << "_time";
+            field_reader.readTime(dset_name.str(), time);
+            dset_name.str("");
+            plot_times.push_back(time);
+
+            // Loop through the plots for this time slice.
+            for (int plot = 0; plot < num_plots; ++plot) {
+               Loki_Utilities::printF("Processing time slice %d of field %s\n",
+                  which_time_slice,
+                  plot_names[plot].c_str());
+
+               // Read plot data.
+               dset_name << "time_slice_" << which_time_slice << "_"
+                         << plot_names[plot];
+               field_reader.readField(dset_name.str(), plot_time_slice);
+               dset_name.str("");
+
+               // Strip out the ghosts from the plot data.
+               for (int iy = 0; iy < ny; ++iy) {
+                  for (int ix = 0; ix < nx; ++ix) {
+                     plot_time_slice_no_ghost[iy*nx+ix] =
+                        plot_time_slice[(iy+a_nGhost)*nx_w_ghost + ix+a_nGhost];
+                  }
+               }
+
+               // Now write this plot's time slice to the post processed file.
+               pp_writer.writeFieldTimeSlice(plot_names[plot],
+                  nx,
+                  ny,
+                  which_time_slice,
+                  plot_time_slice_no_ghost);
+            }
+
+            ++which_time_slice;
+            if (which_time_slice == total_num_time_slices) {
+               goto bailout;
             }
          }
       }
-      // Write this plot to the post-processed fields file.  Write the time and
-      // coordinates once as they are common to all plots.
-      if (plot == 0) {
-         db.put(time,   "time");
-         db.put(x,      "x");
-         db.put(y,      "y");
-      }
-      db.put(plotData, plotNames[plot]);
    }
+   bailout:
+   delete [] plot_time_slice_no_ghost;
 
-   // Close files and clean up.
-   db.unmount();
-
-   show.close();
-
-   for (int plot = 0; plot < numPlots; ++plot) {
-      delete [] plotNames[plot];
-   }
-   delete [] plotNames;
-
+   // Write the plot times.
+   pp_writer.writePlotTimes(plot_times);
    return;
 }
 
@@ -380,51 +394,103 @@ main(
    int a_argc,
    char* a_argv[])
 {
-   // initialize Overture
-   Overture::start(a_argc, a_argv);
-   GenericDataBase::setMaximumNumberOfFilesForWriting(1);
+   // initialize MPI
+   MPI_Init(&a_argc, &a_argv);
+   Loki_Utilities::initialize();
 
-   bool isMaxwell = true;
+   int isMaxwell;
    int species_list_size;
-   std::vector<string> species_names;
+   vector<string> species_names;
    // These will be read in so their initializations probably are not needed.
    int nGhost = 3;
    int spatial_solution_order = 6;
    int temporal_solution_order = 6;
 
-   // Figure out what we're reading and how to process it.
-   aString prefix;
-   bool skip_dists = false;
-   parseCommandLine(prefix, skip_dists, a_argc, a_argv);
+   int major_version;
+   int minor_version;
+   int patch_level;
+   int nx, ny;
 
-   // Maximum number of check points of the distribution function we will read.
-   // This is probably here just to put a cap on the amount of data this thing
-   // will write.
-   const int iMax(1000);
+   // For backward compatibility initilize this to true.  If it is not in the
+   // restart file then we're processing an older file which will contain these
+   // plots.
+   int plot_ke_vel_bdy_flux = 1;
+
+   // Figure out what we're reading and how to process it.
+   string prefix;
+   bool skip_dists = false;
+   deque<int> process_dists(0);
+   bool coll = false;
+   parseCommandLine(prefix, skip_dists, process_dists, coll, a_argc, a_argv);
 
    if (!skip_dists) {
-      // Loop over the maximum allowed number of checkpoint files.
-      printF("starting with distribution functions\n");
-      for (int i(0); i < iMax; ++i) {
+      // Loop over either all the checkpoint files or, if specific checkpoints
+      // have been requested, only those requested.
+      Loki_Utilities::printF("starting with distribution functions\n");
+      bool first_dist = true;
+      bool processing_specific_dists = process_dists.size() != 0;
 
-         // Try to open this checkpoint file.  If we can't then we're done
-         // with the checkpoint files that have been written.
-         char buffer[100];
-         sprintf(buffer, "%s/dist_%i.hdf", (const char*)prefix, i);
+      // Set the index of the first checkpoint file to be processed.
+      int idx;
+      if (processing_specific_dists) {
+         idx = process_dists.front();
+         process_dists.pop_front();
+      }
+      else {
+         idx = 0;
+      }
+      while (true) {
 
-         HDF_DataBase db;
-         if (db.mount(buffer, "R") != 0) { // mount, R = read-only
+         // Check if this checkpoint file exists.  If it does, then process it.
+         // If not then we're done with the checkpoint files that have been
+         // written.
+         ostringstream base_file_name;
+         base_file_name << prefix << "/dist_" << idx << ".hdf";
+         struct stat stat_buf;
+         if (stat(base_file_name.str().c_str(), &stat_buf) != 0) {
             break;
          }
          else {
-            printF("opening dist_%i\n", i);
+            // Find out how many bulkddata files exist.
+            ostringstream bulkdata_file_name;
+            int bulkdata_idx = 0;
+            while (true) {
+               bulkdata_file_name << base_file_name.str();
+               bulkdata_file_name << ".g" << bulkdata_idx;
+               if (stat(bulkdata_file_name.str().c_str(), &stat_buf) != 0) {
+                  break;
+               }
+               ++bulkdata_idx;
+               bulkdata_file_name.str("");
+            }
+            Loki_Utilities::printF("opening dist_%i\n", idx);
+            RestartReader reader(base_file_name.str(), bulkdata_idx, true);
+            base_file_name.str("");
+
+            // We only need to check that the post-processor is compatible with
+            // the version of Loki that generated this data one time.
+            if (first_dist) {
+               // This version of the post-processor will not work with a
+               // version of Loki earlier than 3.0.0.
+               reader.readIntegerValue("major version", major_version);
+               reader.readIntegerValue("minor version", minor_version);
+               reader.readIntegerValue("patch level", patch_level);
+               if (major_version < 3 || minor_version < 0 || patch_level < 0) {
+                  cout << "ERROR: vp4DPostProcess.C: Data generated with incompatible version of Loki."
+                       << endl;
+                  exit(-1);
+               }
+            }
 
             // Get the time stamp of this checkpoint and the number of ghosts.
             // Then figure out the solution orders.
-            real t(0.0);
-            db.get(t, "time");
+            double t(0.0);
+            reader.readDoubleValue("time", t);
 
-            db.get(nGhost, "nGhost");
+            reader.readIntegerValue("nGhost", nGhost);
+
+            reader.readIntegerValue("plot_ke_vel_bdy_flux",
+               plot_ke_vel_bdy_flux);
 
             if (nGhost == 2) {
                spatial_solution_order = 4;
@@ -436,134 +502,178 @@ main(
             }
 
             // See if this is a Maxwell run.
-            HDF_DataBase maxwell_db;
-            if (db.locate(maxwell_db, "Maxwell") != 0) {
-               isMaxwell = false;
-            }
+            reader.readIntegerValue("isMaxwell", isMaxwell);
 
             // Get the list of species names.
-            HDF_DataBase sub_db;
-            if (db.locate(sub_db, "species_list") != 0) {
-               std::cout << "ERROR: vp4DPostProcess.C: Unable to locate 'species_list' GROUP"
-                         << std::endl;
-               exit(-1);
-            }
-            std::cout << "Located species_list sub_db..." << std::endl;
-            if (db.get(species_list_size, "species_list_size") != 0) {
-               std::cout << "ERROR: vp4DPostProcess.C: Unable to locate 'species_list_size' DATASET"
-                         << std::endl;
-               exit(-1);
-            }
-            std::cout << "Obtained species_list_size of "
-                      << species_list_size << std::endl;
+            reader.readIntegerValue("species_list_size", species_list_size);
+            cout << "Obtained species_list_size of "
+                 << species_list_size << endl;
+            reader.pushSubDir("species_list");
+            cout << "Located species_list subdir..." << endl;
 
-            for (int s(0); s < species_list_size; ++s) {
-               aString tmp;
-               std::stringstream tag;
-               tag << "species." << s + 1;
-               sub_db.get(tmp, (aString)tag.str());
-               species_names.push_back(tmp);
+            // We only need to get the species names one time.
+            if (first_dist) {
+               for (int s(0); s < species_list_size; ++s) {
+                  string tmp;
+                  stringstream tag;
+                  tag << "species." << s + 1;
+                  reader.readString(tag.str(), tmp);
+                  species_names.push_back(tmp);
+               }
             }
+            reader.popSubDir();
 
             // Construct each species.
             KineticSpeciesPtrVect kinetic_species;
             kinetic_species.resize(species_list_size);
             for (int s(0); s < species_list_size; ++s) {
                kinetic_species[s] =
-                  new KineticSpecies(db,
-                                     s+1,
-                                     species_list_size,
-                                     spatial_solution_order,
-                                     temporal_solution_order,
-                                     false,
-                                     species_names[s]);
+                  new KineticSpecies(reader,
+                     s+1,
+                     species_list_size,
+                     spatial_solution_order,
+                     temporal_solution_order,
+                     plot_ke_vel_bdy_flux,
+                     false,
+                     species_names[s]);
+               if (first_dist && s == 0) {
+                  nx = kinetic_species[s]->domain().numberOfCells(0);
+                  ny = kinetic_species[s]->domain().numberOfCells(1);
+               }
             }
-            std::cout << "**Created vector of new KineticSpecies" << std::endl;
-
-            // Done reading from this checkpoint file.
-            db.unmount();
+            cout << "**Created vector of new KineticSpecies" << endl;
 
             // Open the post-processed distribution function file for this
             // checkpoint and write the distribution functions to it.
-            sprintf(buffer, "%s_dist_%i.hdf", (const char*)prefix, i);
-            HDF_DataBase db2;
-            db2.mount(buffer, "I");                   // mount, I = initialize
+            base_file_name << prefix << "_dist_" << idx << ".hdf";
+            RestartWriter writer(base_file_name.str(), bulkdata_idx, true);
+            base_file_name.str("");
 
-            // Save the time stamp and the number of ghosts.
-            db2.put(t, "time");
-            db2.put(nGhost, "nGhost");
+            // Save the time stamp, the number of ghosts, and whether the KE
+            // velocity boundary fluxes were written.
+            writer.writeDoubleValue("time", t, true);
+            writer.writeIntegerValue("nGhost", nGhost, true);
+            writer.writeIntegerValue("plot_ke_vel_bdy_flux",
+               plot_ke_vel_bdy_flux,
+               true);
 
             // Write the number of species.
-            HDF_DataBase sub_db2;
-            db2.create(sub_db2, "species_list", "directory");
-            db2.put(species_list_size, "species_list_size");
+            writer.writeIntegerValue("species_list_size",
+               species_list_size,
+               true);
+
+            // Write the names of each species.
+            writer.pushSubDir("species_list");
+            for (int s(0); s < species_list_size; ++s) {
+               stringstream tag;
+               tag << "species." << s + 1;
+               writer.writeString(tag.str().c_str(), species_names[s], true);
+            }
+            writer.popSubDir();
 
             // Have each species write it distribution function and other
             // basic parameters.  We don't care about Krook layers.
             for (int s(0); s < species_list_size; ++s) {
-               kinetic_species[s]->putToRestart_SkipKrook(db2, 0.0);
-               // TODO: Replace below with call to VPSystem::putToRestart()...?
-               std::stringstream tag;
-               tag << "species." << s + 1;
-               sub_db2.put(species_names[s], tag.str().c_str());
+               kinetic_species[s]->putToRestart_SkipKrook(writer, 0.0);
             }
-            std::cout << "**Put KineticSpecies vector to Restart" << std::endl;
-            db2.unmount();
+            cout << "**Processed KineticSpecies for restart " << idx << endl;
          }
 
-         std::cout << "Completed iteration " << i << " of loop" << std::endl;
+        // Update the index of the checkpoint file to be processed next.  If
+        // specific checkpoint files have been specified then get the next
+        // index from that list.  If the list is exhausted then we're done.
+        // Otherwise just increment the index and try to process it.
+         if (processing_specific_dists) {
+            if (process_dists.empty()) {
+               break;
+            }
+            idx = process_dists.front();
+            process_dists.pop_front();
+         }
+         else {
+            ++idx;
+         }
+         first_dist = false;
       }
-      printF("\nfinished with distribution functions\n");
+      Loki_Utilities::printF("\nfinished with distribution functions\n");
    }
    else {
       // If we're not processing the distribution functions all we need to do
       // is to get some basic info from the first checkpoint file.
 
       // Open the first checkpoint file and get the number of ghosts.
-      char buffer[100];
-      sprintf(buffer, "%s/dist_0.hdf", (const char*)prefix);
+      ostringstream base_file_name;
+      base_file_name << prefix << "/dist_0.hdf";
 
-      HDF_DataBase db;
-      db.mount(buffer, "R");
-      db.get(nGhost, "nGhost");
+      RestartReader reader(base_file_name.str(), 1, true);
+      reader.readIntegerValue("nGhost", nGhost);
+
+      reader.readIntegerValue("plot_ke_vel_bdy_flux", plot_ke_vel_bdy_flux);
 
       // See if this is a Maxwell run.
-      HDF_DataBase maxwell_db;
-      if (db.locate(maxwell_db, "Maxwell") != 0) {
-         isMaxwell = false;
-      }
+      reader.readIntegerValue("isMaxwell", isMaxwell);
 
       // Get list of species names.
-      HDF_DataBase sub_db;
-      if (db.locate(sub_db, "species_list") != 0) {
-         std::cout << "ERROR: vp4DPostProcess.C: Unable to locate 'species_list' GROUP"
-                   << std::endl;
-         exit(-1);
-      }
-      std::cout << "Located species_list sub_db..." << std::endl;
-      if (db.get(species_list_size, "species_list_size") != 0) {
-         std::cout << "ERROR: vp4DPostProcess.C: Unable to locate 'species_list_size' DATASET"
-                   << std::endl;
-         exit(-1);
-      }
-      std::cout << "Obtained species_list_size of "
-                << species_list_size << std::endl;
+      reader.readIntegerValue("species_list_size", species_list_size);
+      cout << "Obtained species_list_size of " << species_list_size << endl;
+      reader.pushSubDir("species_list");
+      cout << "Located species_list sub_db..." << endl;
 
       for (int s(0); s < species_list_size; ++s) {
-         aString tmp;
-         std::stringstream tag;
+         string tmp;
+         stringstream tag;
          tag << "species." << s + 1;
-         sub_db.get(tmp, (aString)tag.str());
+         reader.readString(tag.str(), tmp);
          species_names.push_back(tmp);
       }
+      reader.popSubDir();
+
+      // This version of the post-processor will not work with a version of Loki
+      // earlier than 3.0.0.
+      reader.readIntegerValue("major version", major_version);
+      reader.readIntegerValue("minor version", minor_version);
+      reader.readIntegerValue("patch level", patch_level);
+      if (major_version < 3 || minor_version < 0 || patch_level < 0) {
+         cout << "ERROR: vp4DPostProcess.C: Data generated with incompatible version of Loki."
+              << endl;
+         exit(-1);
+      }
+
+      // Get Nx and Ny from the first species.
+      reader.pushSubDir(species_names[0]);
+      tbox::Dimension dim(4);
+      tbox::IntVector n_cells(dim);
+      n_cells.getFromDatabase(reader, "N");
+      nx = n_cells[0];
+      ny = n_cells[1];
+      reader.popSubDir();
    }
 
    // Finished with distribution functions so process the time histories and
    // fields.
-   writeTimeHistories(prefix, isMaxwell, species_list_size);
+   writeTimeHistories(prefix, isMaxwell, false, species_names);
 
-   writeFields(prefix, nGhost, isMaxwell, species_list_size, species_names);
+   writeFields(prefix,
+      nx,
+      ny,
+      nGhost,
+      isMaxwell,
+      false,
+      species_names,
+      plot_ke_vel_bdy_flux);
 
-   Overture::finish();
+   if (coll) {
+      writeTimeHistories(prefix, isMaxwell, true, species_names);
+      writeFields(prefix,
+         nx,
+         ny,
+         nGhost,
+         isMaxwell,
+         true,
+         species_names,
+         plot_ke_vel_bdy_flux);
+   }
+
+   MPI_Finalize();
    return 0;
 }

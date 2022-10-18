@@ -1,38 +1,10 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef _SIMULATION_H_
@@ -41,9 +13,8 @@
 #include <string>
 #include <vector>
 
-#include "Overture.h"
-#include "ParmParse.H"
-#include "Ogshow.h"
+#include "LokiInputParser.H"
+#include "Loki_Defines.H"
 #include "tbox/Pointer.H"
 #include "System.H"
 
@@ -65,18 +36,18 @@ namespace Loki {
  *      positiveinteger value maximum number of simulation steps
  *
  *    -\b max_time
- *      positive real value final time at which simulation terminates
+ *      positive double value final time at which simulation terminates
  *
  *    -\b fixed_dt
- *      positive real value, if set, for the time step to be used
+ *      positive double value, if set, for the time step to be used
  *
  *    -\b max_dt_grow
- *      positive real value of the multiple of the current time step to use for
- *      the next time step.  Must be grater than 1.  Multually exclusive with
- *      fixed_dt
+ *      positive double value of the multiple of the current time step to use
+ *      for the next time step.  Must be grater than 1.  Multually exclusive
+ *      with fixed_dt
  *
  *    -\b initial_dt_fraction
- *      positive real value fraction of the initial stable time step to use.
+ *      positive double value fraction of the initial stable time step to use.
  *      Must be less than 1.  Multually exclusive with fixed_dt
  *
  *    -\b checkpoint_interval
@@ -108,12 +79,37 @@ class Simulation : public Serializable
 {
 public:
    /**
+    * @brief The speed of light for the simulation.
+    */
+   static double s_LIGHT_SPEED;
+
+   /**
+    * @brief If true use relativistic calculations.
+    */
+   static bool s_DO_RELATIVITY;
+
+   /**
+    * @brief Loki major version number.
+    */
+   static const int LOKI_VERSION_MAJOR;
+
+   /**
+    * @brief Loki minor version number.
+    */
+   static const int LOKI_VERSION_MINOR;
+
+   /**
+    * @brief Loki patch level number.
+    */
+   static const int LOKI_VERSION_PATCHLEVEL;
+
+   /**
     * @brief Constructor.
     *
     * @param[in] a_pp Input database from which to intialize.
     */
    explicit Simulation(
-      ParmParse& a_pp);
+      LokiInputParser& a_pp);
 
    /**
     * @brief Destructor.
@@ -134,7 +130,7 @@ public:
 
    /**
     * @brief Advances the simulation a single timestep and writes
-    * restart/diagnostics as necessary.
+    *        restart/diagnostics as necessary.
     */
    void
    advance();
@@ -152,28 +148,150 @@ public:
    /**
     * @brief Read the simulation parameters from the restart database.
     *
-    * @param[in] a_db The restart database.
+    * @param[in] a_reader The restart file reader.
     */
    virtual
    void
    getFromRestart(
-      const HDF_DataBase& a_db);
+      RestartReader& a_reader);
 
    /**
     * @brief Write the simulation parameters to the restart database.
     *
-    * @param[in] a_db The restart database.
+    * @param[in] a_writer The restart file writer.
     * @param[in] a_time Current simulation time.
     */
    virtual
    void
    putToRestart(
-      HDF_DataBase& a_db,
-      real a_time);
+      RestartWriter& a_writer,
+      double a_time);
 
   //@}
 
 private:
+   // Embedded class to hold collision diagnostic parameters.
+   class CollisionDiagnosticParameters
+   {
+   public:
+      // Default constructor.
+      CollisionDiagnosticParameters() {
+         m_saveSteps = m_writeSteps = m_lastSave = m_lastSaveStep =
+            m_lastWrite = m_lastWriteStep = -1;
+         m_saveTimes = m_writeTimes = -1.0;
+         m_on = false;
+      }
+
+      // Destructor
+      ~CollisionDiagnosticParameters() {
+      }
+
+      // Returns true if collision sequences should be accumulated at this
+      // timestep.
+      bool
+      doCollSeqAccum(double a_time,
+         int a_step) {
+         if (m_on) {
+            if (m_writeTimes > 0.0) {
+               if (a_time < (m_lastWrite+1)*m_writeTimes) {
+                  return false;
+               }
+               else {
+                  ++m_lastWrite;
+                  return true;
+               }
+            }
+            else {
+               if (m_lastWriteStep >= 0 &&
+                   a_step - m_lastWriteStep < m_writeSteps) {
+                  return false;
+               }
+               else {
+                  m_lastWriteStep = a_step;
+                  return true;
+               }
+            }
+         }
+      }
+
+      // Returns true if collision plot data should be saved at this timestep.
+      bool
+      doCollPlot(double a_time,
+         int a_step) {
+         if (m_on) {
+            if (m_saveTimes > 0.0) {
+               if (a_time < (m_lastSave+1)*m_saveTimes) {
+                  return false;
+               }
+               else {
+                  ++m_lastSave;
+                  return true;
+               }
+            }
+            else {
+               if (m_lastSaveStep >= 0 &&
+                   a_step - m_lastSaveStep < m_saveSteps) {
+                  return false;
+               }
+               else {
+                  m_lastSaveStep = a_step;
+                  return true;
+               }
+            }
+         }
+      }
+
+      // Read input parameters from the top level of the input database.
+      void
+      parseParameters(
+         LokiInputParser& a_pp) {
+         if (a_pp.contains("coll_save_steps")) {
+            a_pp.get("coll_save_steps", m_saveSteps);
+            m_on = true;
+         }
+
+         if (a_pp.contains("coll_save_times")) {
+            a_pp.get("coll_save_times", m_saveTimes);
+            m_on = true;
+         }
+
+         if (a_pp.contains("coll_seq_write_steps")) {
+            a_pp.get("coll_seq_write_steps", m_writeSteps);
+            m_on = true;
+         }
+
+         if (a_pp.contains("coll_seq_write_times")) {
+            a_pp.get("coll_seq_write_times", m_writeTimes);
+            m_on = true;
+         }
+
+         if (m_on) {
+            if ((m_saveSteps > 0 && m_saveTimes > 0.0) ||
+                (m_saveSteps < 0 && m_saveTimes < 0.0)) {
+               LOKI_ABORT("Invalid parameters for collision 2D field saves");
+            }
+
+            if ((m_writeSteps > 0 && m_writeTimes > 0.0) ||
+                (m_writeSteps < 0 && m_writeTimes < 0.0)) {
+               LOKI_ABORT("Invalid parameters for collision sequence writes");
+            }
+         }
+      }
+
+      bool
+      on() {
+         return m_on;
+      }
+
+   private:
+      // "write" is for history saves; "save" is for 2D spatial field saves.
+      int m_saveSteps, m_writeSteps;
+      double m_saveTimes, m_writeTimes;
+      bool m_on;
+
+      int m_lastSave, m_lastSaveStep, m_lastWrite, m_lastWriteStep;
+   };
+
    // Unimplemented default constructor.
    Simulation();
 
@@ -189,7 +307,7 @@ private:
    // Obtain control parameters from the top level of the input database.
    void
    parseParameters(
-      ParmParse& a_ppsim);
+      LokiInputParser& a_ppsim);
 
    // Print class' parameters.
    void
@@ -227,68 +345,69 @@ private:
    int m_max_step;
 
    // The current simulation time.
-   real m_time;
+   double m_time;
 
    // The maximum simulation time.
-   real m_max_time;
+   double m_max_time;
 
    // The current stable time step.
-   real m_dt;
+   double m_dt;
 
    // Time step safety factor.
-   real m_cfl;
+   double m_cfl;
 
    ////////////////////////////////////
    // Belong in a diagnostic manager
    //
-   // The frequency in simulation time for writting plot data.
-   real    m_save_times;
+   // The frequency in simulation time for writing plot data.
+   double    m_save_times;
    //
    // If false, no time history or plot data will be collected or written no
    // matter what frequencies have been set.
    bool    m_save_data;
+   bool m_save_coll_data;
    //
-   // The base name for plot files.  Overture appends its own info to this.
-   aString m_show_file_name;
+   // The base name of the time history files.
+   string m_time_hist_file_name;
+   //
+   // The base name of the collision time history files.
+   string m_coll_time_hist_file_name;
    //
    // Probe locations as a fraction of the domain in (x,y)
-   RealArray m_probes;
+   vector<vector<double> > m_probes;
    //
    // The frequency in simulation time for the collection of time history
    // points.
-   real m_seq_times;
+   double m_seq_times;
    //
    // The number of probes.
    int m_num_probes;
    //
    // The number of time history points accumulated so far.
-   int m_saved_seq;
+   int m_saved_seq, m_saved_seq_coll;
    // The last time history point index, including restarts.
    int m_last_seq;
    //
    // The number of plot cycles that have occurred so far.
-   int m_saved_save;
+   int m_saved_save, m_saved_save_coll;
    // The last plot index, including restarts.
    int m_last_save;
-   //
-   // The Overture show file object for plot data.
-   Ogshow m_show;
-   ////////////////////////////////////
 
    // Sequences are saved every m_seq_times starting from 0.  This is true even
    // on restart when m_time does not start from 0.  So we need a 0 based time
    // to properly trigger sequence saving.  If m_time is used, the sequences
    // are saved far too often on restart and consequently the code runs MUCH
    // slower.
-   real m_time_from_start_of_run;
+   double m_time_from_start_of_run;
+
+   // If true then this is a VM problem.
+   bool m_do_maxwell;
 
    // The system we are solving.
    tbox::Pointer<System> m_system;
 
-   // Loki versioning info.
-   static const int LOKI_VERSION_MAJOR;
-   static const int LOKI_VERSION_MINOR;
-   static const int LOKI_VERSION_PATCHLEVEL;
+   // Information about requested collision operator diagnostics.
+   CollisionDiagnosticParameters m_coll_diag;
 };
 
 } // end namespace Loki

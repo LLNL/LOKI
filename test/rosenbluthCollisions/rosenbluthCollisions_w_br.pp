@@ -1,13 +1,16 @@
 $klde = 1.0/3.0;
 #
 $pi = 3.1415926535897932384626;
-$xa = -$pi/$klde;
-$xb =  $pi/$klde;
+$xa = -.8;
+$xb =  .8;
 $ya = -.8;
 $yb =  .8;
 #
+$vHEmin = -4;
+$vHEmax = 4;
 $vEmin = -8;
 $vEmax = 8;
+$m1 = 4.0;
 #
 # Probe locations are given as fractions of the domain
 #
@@ -17,7 +20,7 @@ $probe_x2 = 0.25;
 $probe_y2 = 0.5;
 $probe_x3 = 0.75;
 $probe_y3 = 0.5;
-$probe_x4 = 0.95;
+$probe_x4 = 0.0;
 $probe_y4 = 0.5;
 $probe_x5 = 0.5;
 $probe_y5 = 0.25;
@@ -31,46 +34,81 @@ verbosity = 0
 # Configuration space Domain
 #
 domain_limits = $xa $xb $ya $yb 
-N = 32 5
+N = 16 16
 periodic_dir = true true
 #periodic_dir = false false
 #
 # Time step controls
 #
 cfl = 0.9
-final_time = 5.0
-save_times = 1.0
-sequence_write_times = .1
-max_step = 1000000
+# final_time = 1.0
+max_step=30
+save_times = 0.01
+coll_save_steps = 1
+# coll_save_times = 0.01
+coll_seq_write_steps = 1
+# coll_seq_write_times = 0.01
+sequence_write_times = 0.01
 #
 # Plasma definition
 #
-number_of_species = 1
-kinetic_species.1.name = "electron"
-kinetic_species.1.velocity_limits = $vEmin $vEmax $vEmin $vEmax
+number_of_species = 2
+kinetic_species.1.name = "heavyelectron"
+kinetic_species.1.velocity_limits = $vHEmin $vHEmax $vHEmin $vHEmax
 kinetic_species.1.Nv = 64 64
-kinetic_species.1.mass = 1.0
+kinetic_species.1.mass = $m1
 kinetic_species.1.charge = -1.0
 kinetic_species.1.ic.name = "Perturbed Maxwellian"
-kinetic_species.1.ic.alpha = 1.0 
-kinetic_species.1.ic.beta = 1.0
+kinetic_species.1.ic.tx = 1.0
+kinetic_species.1.ic.ty = 1.0
 kinetic_species.1.ic.vx0 = 0.0
 kinetic_species.1.ic.vy0 = 0.0
-kinetic_species.1.ic.A = 0.0001
+kinetic_species.1.ic.A = 0.0
 kinetic_species.1.ic.B = 0.0
 kinetic_species.1.ic.C = 0.0
 kinetic_species.1.ic.kx1 = $klde
 kinetic_species.1.ic.ky1 = 0.0
+kinetic_species.1.ic.vflowinitx = 0.5
+kinetic_species.1.ic.vflowinity = 0.5
 kinetic_species.1.num_collision_operators = 1
 kinetic_species.1.collision_operator.1.name = "Rosenbluth Collision Operator"
-kinetic_species.1.collision_operator.1.collision_vceil = 6.0
-kinetic_species.1.collision_operator.1.collision_vfloor = 1.0
-kinetic_species.1.collision_operator.1.collision_vthermal = 1.0
-kinetic_species.1.collision_operator.1.collision_vthermal_dt = 1.0
-kinetic_species.1.collision_operator.1.collision_nuCoeff = 1.2
-kinetic_species.1.collision_operator.1.collision_alpha = 1.0
-kinetic_species.1.collision_operator.1.collision_massR = 1.0
+kinetic_species.1.collision_operator.1.collision_interspecies = true
+kinetic_species.1.collision_operator.1.collision_nuCoeffInterspecies = 0.1
 kinetic_species.1.collision_operator.1.collision_back_reaction = true
+kinetic_species.1.collision_operator.1.collision_self = false
+kinetic_species.1.collision_operator.1.collision_diagnostic = true
+kinetic_species.1.collision_operator.1.kernel_alg = "primitive"
+kinetic_species.1.collision_operator.1.collision_vel_range_lo = -3.25 -3.25
+kinetic_species.1.collision_operator.1.collision_vel_range_hi = 3.25 3.25
+
+#
+kinetic_species.2.name = "electron"
+kinetic_species.2.velocity_limits = $vEmin $vEmax $vEmin $vEmax
+kinetic_species.2.Nv = 64 64
+kinetic_species.2.mass = 1.0
+kinetic_species.2.charge = -1.0
+kinetic_species.2.ic.name = "Perturbed Maxwellian"
+kinetic_species.2.ic.tx = 1.0
+kinetic_species.2.ic.ty = 1.0
+kinetic_species.2.ic.vx0 = 0.0
+kinetic_species.2.ic.vy0 = 0.0
+kinetic_species.2.ic.A = 0.0
+kinetic_species.2.ic.B = 0.0
+kinetic_species.2.ic.C = 0.0
+kinetic_species.2.ic.kx1 = $klde
+kinetic_species.2.ic.ky1 = 0.0
+kinetic_species.2.ic.vflowinitx = -1.0
+kinetic_species.2.ic.vflowinity = -1.0
+kinetic_species.2.num_collision_operators = 1
+kinetic_species.2.collision_operator.1.name = "Rosenbluth Collision Operator"
+kinetic_species.2.collision_operator.1.collision_interspecies = true
+kinetic_species.2.collision_operator.1.collision_nuCoeffInterspecies = 0.1
+kinetic_species.2.collision_operator.1.collision_back_reaction = true
+kinetic_species.2.collision_operator.1.collision_self = false
+kinetic_species.2.collision_operator.1.collision_diagnostic = true
+kinetic_species.2.collision_operator.1.kernel_alg = "primitive"
+kinetic_species.2.collision_operator.1.collision_vel_range_lo = -6.5 -6.5
+kinetic_species.2.collision_operator.1.collision_vel_range_hi = 6.5 6.5
 #
 # Diagnostic Controls
 #
@@ -85,7 +123,8 @@ probe.6.location = $probe_x6 $probe_y6
 #
 plot_ke_fluxes = true
 save_data = true
+save_coll_data = true
 #
 start_from_restart = false
-restart.time_interval = 5
+restart.time_interval = 0.05
 restart.write_directory = "rosenbluthCollisions_w_br"

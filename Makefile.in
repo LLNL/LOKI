@@ -1,55 +1,23 @@
 #########################################################################
 ##
-## Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+## Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+## See the top-level LICENSE file for details.
 ## Produced at the Lawrence Livermore National Laboratory
 ##
-## Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
-## Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
-## hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
-## berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
-## Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
-## Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
-## CH-1015 Lausanne, Switzerland).
-## CODE-744849
-##
-## All rights reserved.
-##
-## This file is part of Loki.  For details, see.
-##
-## Permission is hereby granted, free of charge, to any person obtaining a
-## copy of this software and associated documentation files (the "Software"),
-## to deal in the Software without restriction, including without limitation
-## the rights to use, copy, modify, merge, publish, distribute, sublicense,
-## and/or sell copies of the Software, and to permit persons to whom the
-## Software is furnished to do so, subject to the following conditions:
-##
-## The above copyright notice and this permission notice shall be included in
-## all copies or substantial portions of the Software.
-##
-## THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-## OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-## FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
-## THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-## FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-## DEALINGS IN THE SOFTWARE.
+## SPDX-License-Identifier: MIT
 ##
 ## Loki top level Makefile.
 ##
 #########################################################################
-Overture   = @Overture@
 CC         = @CC@
 CXX        = @CXX@
 F77        = @F77@
 CXXFLAGS   = @CXX_FLAGS@
 CFLAGS     = @C_FLAGS@
 FFLAGS     = @F77_FLAGS@
-DATA_MOVE_INC_PATH = @DATA_MOVE_INC_PATH@
 INC_PATH   = @INC_PATH@
 LIB_PATH   = @LIB_PATH@
 LIB_NAME   = @LIB_NAME@
-
-PETSC =  PETScEquationSolver.o PETScSolver.o
 
 # Here are the things we can make
 PROGRAMS = vlasovPoisson4D vp4DPostProcess testDist checkTests
@@ -73,175 +41,127 @@ check: $(PROGRAMS)
 .c.o:
 	$(CC) $(INC_PATH) $(CFLAGS) -c $*.c
 
-datamove.o : datamove.c
-	$(CC) $(DATA_MOVE_INC_PATH) $(CFLAGS) -c datamove.c
+lokiCore = Loki_Utilities.o \
+           ReaderWriterBase.o \
+           FieldReader.o \
+           FieldWriter.o \
+           RestartReaderWriterBase.o \
+           RestartReader.o \
+           RestartWriter.o \
+           TimeHistReader.o \
+           TimeHistWriter.o \
+           ParallelArray.o \
+           CurrentDriver.o \
+           CurrentDriverFactory.o \
+           ElectricFieldDriver.o \
+           ElectricFieldDriverFactory.o \
+           ElectricPotentialDriver.o \
+           ElectricPotentialDriverFactory.o \
+           EMICFactory.o \
+           EMICInterface.o \
+           VELICFactory.o \
+           VELICInterface.o \
+           CollisionOperator.o \
+           CollisionOperatorF.o \
+           CollisionOperatorFactory.o \
+           ICFactory.o \
+           ICInterface.o \
+           RestartManager.o \
+           TimerManager.o \
+           Load.o \
+           ProblemDomain.o \
+           KrookLayer.o \
+           ExternalDistKrook.o \
+           External2DIC.o \
+           External2VIC.o \
+           PerturbedMaxwellianIC.o \
+           InterpenetratingStreamIC.o \
+           ThermalBehavior.o \
+           MaxwellianThermal.o \
+           JuttnerThermal.o \
+           ShapedRampedCosineDriver.o \
+           ShapedRampedCosineDriverF.o \
+           ShapedRampedCosineCurrentDriver.o \
+           ShapedRampedCosineCurrentDriverF.o \
+           ShapedRampedCosinePotentialDriver.o \
+           ShapedRampedCosinePotentialDriverF.o \
+           GaussianCurrentDriver.o \
+           GaussianCurrentDriverF.o \
+           UnidirectionalCurrentDriver.o \
+           UnidirectionalCurrentDriverF.o \
+           SimpleEMIC.o \
+           SimpleEMICF.o \
+           SimpleVELIC.o \
+           SimpleVELICF.o \
+           TZSourceFactory.o \
+           TZSourceInterface.o \
+           TZSourceF.o \
+           TrigTZSource.o \
+           ElectronTZSourceF.o \
+           ElectronTrigTZSource.o \
+           TwoSpecies_IonTZSourceF.o \
+           TwoSpecies_IonTrigTZSource.o \
+           TwoSpecies_ElectronTZSourceF.o \
+           TwoSpecies_ElectronTrigTZSource.o \
+           PitchAngleCollisionOperator.o \
+           PitchAngleCollisionOperatorF.o \
+           RosenbluthCollisionOperator.o \
+           RosenbluthCollisionOperatorF.o \
+           OriginalRosenbluthCollisionOperator.o \
+           OriginalRosenbluthCollisionOperatorF.o \
+           ReductionSchedule.o \
+           ReductionSchedule4D.o \
+           ContractionSchedule.o \
+           ExpansionSchedule.o \
+           SummationSchedule.o \
+           centAvg_to_faceAvg4D.o \
+           KineticSpeciesF.o \
+           KineticSpeciesPtrVect.o \
+           PoissonSolverFactory.o \
+           PoissonSolver.o \
+           LokiPoissonSolveFFT.o \
+           LokiPoissonSolveSuperLU.o \
+           EMSolverBase.o \
+           Poisson.o \
+           PoissonF.o \
+           Maxwell.o \
+           MaxwellF.o \
+           Particle.o \
+           KineticSpecies.o \
+           Serializable.o \
+           LoadBalancer.o \
+           System.o \
+           VPSystem.o \
+           VMSystem.o \
+           VMState.o \
+           VPState.o \
+           Simulation.o \
+           getVelocityF.o \
+           getMomentumF.o \
+           LokiInputParser.o
 
-PETScEquationSolver.o : PETScEquationSolver.C
-	$(CXX) $(INC_PATH) $(CXXFLAGS) -c PETScEquationSolver.C
+vlasovPoisson4D = main.o PerlPreProcessor.o LokiParser.o
 
-PETScSolver.o : PETScSolver.C
-	$(CXX) $(INC_PATH) $(CXXFLAGS) -c PETScSolver.C
+vp4DPostProcess = vp4DPostProcess.o
 
-libtbox:
+testDist = testDist.o PerlPreProcessor.o LokiParser.o LokiInputParser.o Loki_Utilities.o
+
+checkTests = checkTests.o
+
+vlasovPoisson4D: $(vlasovPoisson4D) $(lokiCore)
 	cd tbox; $(MAKE); cd ..
+	$(CXX) $(CXXFLAGS) -o vlasovPoisson4D $(vlasovPoisson4D) $(lokiCore) $(LIB_PATH) $(LIB_NAME)
 
-vlasovPoisson4D = main.o \
-                  Loki_Utilities.o \
-                  CurrentDriver.o \
-                  CurrentDriverFactory.o \
-                  ElectricFieldDriver.o \
-                  ElectricFieldDriverFactory.o \
-                  ElectricPotentialDriver.o \
-                  ElectricPotentialDriverFactory.o \
-                  EMICFactory.o \
-                  EMICInterface.o \
-                  VELICFactory.o \
-                  VELICInterface.o \
-                  CollisionOperator.o \
-                  CollisionOperatorF.o \
-                  CollisionOperatorFactory.o \
-                  ICFactory.o \
-                  ICInterface.o \
-                  IntegralOp.o \
-                  KernelOp.o \
-                  RestartManager.o \
-                  TimerManager.o \
-                  Load.o \
-                  LoadBalancer.o \
-                  ProblemDomain.o \
-                  KrookLayer.o \
-                  External2DIC.o \
-                  External2DICF.o \
-                  PerturbedMaxwellianIC.o \
-                  PerturbedMaxwellianICF.o \
-                  ShapedRampedCosineDriver.o \
-                  ShapedRampedCosineDriverF.o \
-                  ShapedRampedCosineCurrentDriver.o \
-                  ShapedRampedCosineCurrentDriverF.o \
-                  ShapedRampedCosinePotentialDriver.o \
-                  ShapedRampedCosinePotentialDriverF.o \
-                  SimpleEMIC.o \
-                  SimpleEMICF.o \
-                  SimpleVELIC.o \
-                  SimpleVELICF.o \
-                  TZSourceFactory.o \
-                  TZSourceInterface.o \
-                  TZSourceF.o \
-                  TrigTZSource.o \
-                  PitchAngleCollisionOperator.o \
-                  PitchAngleCollisionOperatorF.o \
-                  RosenbluthCollisionOperator.o \
-                  RosenbluthCollisionOperatorF.o \
-                  Reduction.o \
-                  ReductionOp.o \
-                  ReductionSchedule.o \
-                  ReductionSchedule4D.o \
-                  ContractionSchedule.o \
-                  ExpansionSchedule.o \
-                  SummationSchedule.o \
-                  SumOp.o \
-                  centAvg_to_faceAvg4D.o \
-                  KineticSpeciesF.o \
-                  KineticSpeciesPtrVect.o \
-                  Poisson.o \
-                  PoissonF.o \
-                  Maxwell.o \
-                  MaxwellF.o \
-                  System.o \
-                  VPSystem.o \
-                  VMSystem.o \
-                  VMState.o \
-                  VPState.o \
-                  Particle.o \
-                  Simulation.o \
-                  KineticSpecies.o \
-                  Serializable.o \
-                  PerlPreProcessor.o \
-                  datamove.o \
-                  erfwrap.o \
-                  $(PETSC)
-
-vp4DPostProcess = vp4DPostProcess.o \
-                  Loki_Utilities.o \
-                  CurrentDriver.o \
-                  CurrentDriverFactory.o \
-                  ElectricFieldDriver.o \
-                  ElectricFieldDriverFactory.o \
-                  ElectricPotentialDriver.o \
-                  ElectricPotentialDriverFactory.o \
-                  EMICFactory.o \
-                  EMICInterface.o \
-                  VELICFactory.o \
-                  VELICInterface.o \
-                  CollisionOperator.o \
-                  CollisionOperatorF.o \
-                  CollisionOperatorFactory.o \
-                  ICFactory.o \
-                  ICInterface.o \
-                  IntegralOp.o \
-                  KernelOp.o \
-                  RestartManager.o \
-                  TimerManager.o \
-                  Load.o \
-                  ProblemDomain.o \
-                  KrookLayer.o \
-                  External2DIC.o \
-                  External2DICF.o \
-                  PerturbedMaxwellianIC.o \
-                  PerturbedMaxwellianICF.o \
-                  ShapedRampedCosineDriver.o \
-                  ShapedRampedCosineDriverF.o \
-                  ShapedRampedCosineCurrentDriver.o \
-                  ShapedRampedCosineCurrentDriverF.o \
-                  ShapedRampedCosinePotentialDriver.o \
-                  ShapedRampedCosinePotentialDriverF.o \
-                  SimpleEMIC.o \
-                  SimpleEMICF.o \
-                  SimpleVELIC.o \
-                  SimpleVELICF.o \
-                  TZSourceFactory.o \
-                  TZSourceInterface.o \
-                  TZSourceF.o \
-                  TrigTZSource.o \
-                  PitchAngleCollisionOperator.o \
-                  PitchAngleCollisionOperatorF.o \
-                  RosenbluthCollisionOperator.o \
-                  RosenbluthCollisionOperatorF.o \
-                  Reduction.o \
-                  ReductionOp.o \
-                  ReductionSchedule.o \
-                  ReductionSchedule4D.o \
-                  ContractionSchedule.o \
-                  ExpansionSchedule.o \
-                  SummationSchedule.o \
-                  SumOp.o \
-                  centAvg_to_faceAvg4D.o \
-                  KineticSpeciesF.o \
-                  KineticSpeciesPtrVect.o \
-                  Poisson.o \
-                  PoissonF.o \
-                  Maxwell.o \
-                  MaxwellF.o \
-                  Particle.o \
-                  KineticSpecies.o \
-                  Serializable.o \
-                  datamove.o \
-                  erfwrap.o \
-                  $(PETSC)
-
-testDist = testDist.o PerlPreProcessor.o
-
-vlasovPoisson4D: $(vlasovPoisson4D) libtbox
-	$(CXX) $(CXXFLAGS) -o vlasovPoisson4D $(vlasovPoisson4D) $(LIB_PATH) $(LIB_NAME)
-
-vp4DPostProcess: $(vp4DPostProcess) libtbox
-	$(CXX) $(CXXFLAGS) -o vp4DPostProcess $(vp4DPostProcess) $(LIB_PATH) $(LIB_NAME)
+vp4DPostProcess: $(vp4DPostProcess) $(lokiCore)
+	cd tbox; $(MAKE); cd ..
+	$(CXX) $(CXXFLAGS) -o vp4DPostProcess $(vp4DPostProcess) $(lokiCore) $(LIB_PATH) $(LIB_NAME)
 
 testDist: $(testDist)
 	$(CXX) $(CXXFLAGS) -o testDist $(testDist) $(LIB_PATH) $(LIB_NAME)
 
-checkTests: checkTests.o
-	$(CXX) $(CXXFLAGS) -o checkTests checkTests.o $(LIB_PATH) $(LIB_NAME)
+checkTests: $(checkTests) $(lokiCore)
+	cd tbox; $(MAKE); cd ..
+	$(CXX) $(CXXFLAGS) -o checkTests $(checkTests) $(lokiCore) $(LIB_PATH) $(LIB_NAME)
 
 clean:
 	rm -f $(PROGRAMS) *.o

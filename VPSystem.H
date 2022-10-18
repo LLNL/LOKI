@@ -1,38 +1,10 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #ifndef  _VPSYSTEM_H_
@@ -40,17 +12,14 @@
 
 #include "RKIntegrator.H"
 #include "ODEInterface.H"
+#include "RestartReader.H"
+#include "RestartWriter.H"
 #include "System.H"
 #include "VPState.H"
-
-#include "Overture.h"
-#include "Ogshow.h"
-#include "ParmParse.H"
-#include "ProblemDomain.H"
 #include "Loki_Utilities.H"
 
 namespace Loki {
-
+  
 /**
  * Implemention of the System and ODEInterface interfaces for the solution of
  * the coupled Vlasov-Poisson system.  The VPSystem time integrates a VPState
@@ -69,12 +38,15 @@ public:
     *                         data.
     * @param[in] a_spatial_solution_order Spatial order of solution.
     * @param[in] a_temporal_solution_order Temporal order of solution.
+    * @param[in] a_coll_diag_on If true then collision diagnostics are
+    *                           requested.
     */
    VPSystem(
-      ParmParse& a_pp,
+      LokiInputParser& a_pp,
       int a_num_probes,
       int a_spatial_solution_order,
-      int a_temporal_solution_order);
+      int a_temporal_solution_order,
+      bool a_coll_diag_on);
 
    /**
     * @brief Destructor.
@@ -96,18 +68,6 @@ public:
    void
    defineRHSData(
       VPState&       a_rhs,
-      const VPState& a_prototype);
-
-   /**
-    * @brief Defines the VPState data holder for data with ghost cells.
-    *
-    * @param[out] a_soln Data holder for solution with ghost cells.
-    * @param[in] a_prototype Prototype data holder.
-    */
-   virtual
-   void
-   defineSolnData(
-      VPState&       a_soln,
       const VPState& a_prototype);
 
    /**
@@ -138,21 +98,21 @@ public:
     * @param[out] a_soln Solution data to which is added.
     * @param[in] a_increment Amount to add.
     * @param[in] a_scale Multiplier by which to scale increment.
-    * @param[in] a_final_rk If true, this has been called as part of the final
-    *                       RK update and tracking particle positions need to
-    *                       be limited.
+    * @param[in] a_sum_reduce_inc If true, sum reduce the particle increment.
+    *                             This is necessary at different points in the
+    *                             RK schemes.
     */
    virtual
    void
    addSolnData(
       VPState&       a_soln,
       const VPState& a_increment,
-      real           a_scale,
-      bool           a_final_rk = false);
+      double         a_scale,
+      bool           a_sum_reduce_inc);
 
    /**
     * @brief Checks for conformity between soln and protoSoln ignoring ghost
-    * cells.
+    *        cells.
     *
     * @param[in] a_rhs Data holder.
     * @param[in] a_protoSoln Prototype soln data holder.
@@ -182,16 +142,18 @@ public:
     * @param[in] a_soln Current solution with which to evaluate RHS.
     * @param[in] a_time Current simulation time.
     * @param[in] a_dt Current simulation time step.
-    * @param[in] a_stage Current RK stage number.
+    * @param[in] a_first_rk_stage True if called from the first RK stage.
+    * @param[in] a_last_rk_stage True if called from the last RK stage.
     */
    virtual
    void
    evalRHS(
       VPState& a_rhs,
       VPState& a_soln,
-      real     a_time,
-      real     a_dt,
-      int      a_stage);
+      double   a_time,
+      double   a_dt,
+      bool     a_first_rk_stage,
+      bool     a_last_rk_stage);
 
    /**
     * @brief Callback to allow for additional operations after stage advance.
@@ -215,21 +177,21 @@ public:
     * @brief Computes and returns a stable time step estimate.
     */
    virtual
-   Real
+   double
    stableDt();
 
    /**
     * @brief Advance the solution by a single time step.  Returns the
-    * simulation time advanced to.
+    *        simulation time advanced to.
     *
     * @param[in] a_time Current simulation time.
     * @param[in] a_dt Current simulation time step.
     */
    virtual
-   Real
+   double
    advance(
-      real a_time,
-      real a_dt);
+      double a_time,
+      double a_dt);
 
    /**
     * @brief Initialize the system given the current simulation time.
@@ -238,24 +200,18 @@ public:
     *                              restart.
     * @param[in] a_time Current simulation time.
     * @param[in] a_dt Current simulation time step.
+    * @param[in] a_coll_diag_on If true, collision diagnostics are on.
     */
    virtual
    void
    initialize(
       bool a_is_from_restart,
-      real a_time,
-      real a_dt);
+      double a_time,
+      double a_dt,
+      bool a_coll_diag_on);
 
    /**
-    * @brief Returns number of fields to be plotted.
-    */
-   virtual
-   int
-   getNumFrameSeries();
-
-   /**
-    * @brief Write the field and accumulated sequences to the Overture show
-    * file.
+    * @brief Write the field and accumulated sequences to the field file(s).
     *
     * @param[in] a_time Current simulation time.
     * @param[in] a_dt Current simulation time step.
@@ -263,18 +219,27 @@ public:
     * @param[in] a_num_probes Number of probes.
     * @param[in] a_saved_seq Number of sequence time steps saved.
     * @param[in] a_saved_save Number of plots saved.
-    * @param[out] a_show The Overture show file.
+    * @param[in] a_time_hist_file_name Base name for time history files.
     */
    virtual
    void
    plot(
-      real a_time,
-      real a_dt,
-      const RealArray& a_probes,
+      double a_time,
+      double a_dt,
+      const vector<vector<double> >& a_probes,
       int a_num_probes,
       int a_saved_seq,
       int& a_saved_save,
-      Ogshow& a_show);
+      string& a_time_hist_file_name);
+
+   virtual
+   void
+   plotColl(
+      double a_time,
+      double a_dt,
+      int a_saved_seq,
+      int& a_saved_save,
+      string& a_time_hist_file_name);
 
    /**
     * @brief Accumulate another time point for the sequences.
@@ -287,9 +252,17 @@ public:
    virtual
    void
    accumulateSequences(
-      real a_time,
-      const RealArray& a_probes,
+      double a_time,
+      const vector<vector<double> >& a_probes,
       int a_num_probes,
+      int& a_saved_seq);
+
+   virtual
+   void
+   accumulateCollisionSequences(
+      double a_time,
+      double a_dt,
+      int a_coll_op_idx,
       int& a_saved_seq);
 
    /**
@@ -300,11 +273,23 @@ public:
    problemSize() const;
 
    /**
-    * @brief Updates ghost cells in KineticSpecies distributions.
+    * @brief Updates ghost cells and boundary conditions in KineticSpecies
+    *        distributions and fields.  Sets particle boundary conditions.
+    *
+    * @param[in] a_particles_only If true only updates particle boundary
+    *                             conditions.
     */
    virtual
    void
-   updateGhosts();
+   updateGhosts(
+      bool a_particles_only = false);
+
+   /**
+    * @brief Print the parameters of the system being run .
+    */
+   virtual
+   void
+   printParameters() const;
 
    //@}
 
@@ -315,24 +300,24 @@ public:
    /**
     * @brief Read the KineticSpecies names from the restart database.
     *
-    * @param[in] a_db The restart database.
+    * @param[in] a_reader The restart file reader.
     */
    virtual
    void
    getFromRestart(
-      const HDF_DataBase& a_db);
+      RestartReader& a_reader);
 
    /**
     * @brief Write the KineticSpecies names to the restart database.
     *
-    * @param[out] a_db The restart database.
+    * @param[out] a_writer The restart file writer.
     * @param[in] a_time Current simulation time.
     */
    virtual
    void
    putToRestart(
-      HDF_DataBase& a_db,
-      real a_time);
+      RestartWriter& a_writer,
+      double a_time);
 
    //@}
 
@@ -352,40 +337,16 @@ private:
    // Creates the state variable, m_state.
    void
    createVPState(
-      ParmParse& a_pp);
+      LokiInputParser& a_pp,
+      bool a_coll_diag_on);
 
    // Load balance the contents of m_state.
    void
    loadBalance();
 
-   // Print class' parameters.
-   void
-   printParameters() const
-   {
-   }
-
-   // Parse input parameters from top level of input database.
-   void
-   parseParameters(
-      ParmParse& a_pp)
-   {
-      aString test_str = "true";
-      a_pp.query("do_new_algorithm", test_str);
-      m_do_new_algorithm = test_str.matches("true") ? true : false;
-   }
-
    // Print the decomposition of m_state.
    void
    printDecomposition() const;
-
-   // Configuration space dimension.
-   tbox::Dimension m_cdim;
-
-   // Phase space dimension.
-   tbox::Dimension m_pdim;
-
-   // The global problem domain.
-   tbox::Pointer<ProblemDomain> m_cfg_domain;
 
    // Updated state.
    VPState m_state;
@@ -393,58 +354,23 @@ private:
    // State at last time step.
    VPState m_state_old;
 
-   // Names of all KineticSpecies.
-   std::vector<string> m_species_names;
-
    // RKIntegrator to solve ODE system.
    tbox::Pointer<RKIntegrator<VPState> > m_integrator;
 
    // The net charge density.
-   realArray m_net_charge_density;
+   ParallelArray m_net_charge_density;
 
-   // The contribution to m_net_charge_density from each KineticSpecies.
-   std::vector<realArray> m_charge_density;
+   // The 2D species x momentum
+   ParallelArray m_species_momx;
+
+   // The 2D species y momentum
+   ParallelArray m_species_momy;
 
    // The 2D species kinetic energy.
-   realArray m_species_ke;
+   ParallelArray m_species_ke;
 
-   // The 2D species physical boundary energy flux.
-   realArray m_species_phys_bdry_flux;
-
-   // The 2D species velocity boundary energy flux.
-   realArray m_species_vel_bdry_flux;
-
-   // The electric field solved by m_poisson.
-   realArray m_efield;
-
-   // The electric field generated by all electric field drivers from each
-   // KineticSpecies.
-   std::vector<realArray> m_ext_efield;
-
-   // The total electric field generated by all electric field drivers from all
-   // KineticSpecies.
-   realArray m_net_ext_efield;
-
-   // The time sequences.
-   RealArray m_sequences;
-
-   // The times at which each time sequence has a data point.
-   RealArray m_time_seq;
-
-   // The number of time sequences.
-   int m_num_seq;
-
-   // The number of data points for each time sequence.
-   int m_length_seq;
-
-   // If true use new, faster, algorithm.
-   bool m_do_new_algorithm;
-
-   // Order of spatial solution.
-   int m_spatial_solution_order;
-
-   // Order of temporal solution.
-   int m_temporal_solution_order;
+   // The 2D species entropy
+   ParallelArray m_species_ent;
 };
 
 } // end namespace Loki

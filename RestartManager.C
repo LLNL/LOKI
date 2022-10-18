@@ -1,43 +1,19 @@
 /*************************************************************************
  *
- * Copyright (c) 2018, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2018-2022, Lawrence Livermore National Security, LLC.
+ * See the top-level LICENSE file for details.
  * Produced at the Lawrence Livermore National Laboratory
  *
- * Written by Jeffrey Banks banksj3@rpi.edu (Rensselaer Polytechnic Institute,
- * Amos Eaton 301, 110 8th St., Troy, NY 12180); Jeffrey Hittinger
- * hittinger1@llnl.gov, William Arrighi arrighi2@llnl.gov, Richard Berger
- * berger5@llnl.gov, Thomas Chapman chapman29@llnl.gov (LLNL, P.O Box 808,
- * Livermore, CA 94551); Stephan Brunner stephan.brunner@epfl.ch (Ecole
- * Polytechnique Federale de Lausanne, EPFL SB SPC-TH, PPB 312, Station 13,
- * CH-1015 Lausanne, Switzerland).
- * CODE-744849
- *
- * All rights reserved.
- *
- * This file is part of Loki.  For details, see.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  ************************************************************************/
 #include "RestartManager.H"
+#include "RestartReader.H"
+#include "RestartWriter.H"
+#include "Loki_Defines.H"
 #include "Loki_Utilities.H"
 // Allows use of 'mkdir'
+#include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -65,52 +41,57 @@ RestartManager::RestartManager()
       m_restart_write_path("."),
       m_restart_read_path("."),
       m_is_from_restart(false),
-      m_restart_index(0)
+      m_restart_index(0),
+      m_max_restart_files(16)
 {
-  // Parse to check if restart is required.  The "start_from_restart" input is
-  // not part of the "restart" sub-database for some reason.
-  aString start_from_restart("false");
-  ParmParse pp;
-  pp.query("start_from_restart", start_from_restart);
-  m_is_from_restart = start_from_restart.matches("true") ? true : false;
+   // Parse to check if restart is required.  The "start_from_restart" input is
+   // not part of the "restart" sub-database for some reason.
+   string start_from_restart("false");
+   LokiInputParser pp;
+   pp.query("start_from_restart", start_from_restart);
+   m_is_from_restart = start_from_restart.compare("true") == 0 ? true : false;
+   pp.query("max_files_for_write", m_max_restart_files);
 
-  // Now read the other restart related input from the "restart" sub-database.
-  ParmParse restart_pp("restart");
-  parseParameters(restart_pp);
+   // Now read the other restart related input from the "restart" sub-database.
+   LokiInputParser restart_pp("restart");
+   parseParameters(restart_pp);
 
-  // If we're running a restarted simulation then we must find the index of the
-  // last restart file written.  We'll pick up the simulation from there.
-  if (m_is_from_restart) {
-    findRestartIndex();
-  }
+   // If we're running a restarted simulation then we must find the index of the
+   // last restart file written.  We'll pick up the simulation from there.
+   if (m_is_from_restart) {
+      findRestartIndex();
+   }
 }
 
 
 void
 RestartManager::resetNextWriteTime(
-   real a_time)
+   double a_time)
 {
-  if (m_write_on_time) {
-    m_next_write_time = a_time;
-  }
+   if (m_write_on_time) {
+      m_next_write_time = a_time;
+   }
 }
 
 
 void
-RestartManager::write(real a_time)
+RestartManager::write(
+   double a_time)
 {
    // Glue together the info we already have to form the name of the file we're
    // going to write to and open it.
-   char restart_filename[100];
-   createFileName(restart_filename,
-      m_restart_write_path.c_str(),
-      m_restart_index++);
-   printF("Writing to %s\n", restart_filename);
+   ostringstream restart_filename;
+   createFileName(restart_filename, m_restart_write_path, m_restart_index++);
+   Loki_Utilities::printF("Writing to %s\n", restart_filename.str().c_str());
 
    // See if the path to the restart file exists.  If not, make it.
    if (access(m_restart_write_path.c_str(), F_OK) != 0) {
-      if (mkdir(m_restart_write_path, S_IRWXU|S_IRGRP|S_IXGRP) != 0) {
-         perror("mkdir() error");
+      if (mkdir(m_restart_write_path.c_str(), S_IRWXU|S_IRGRP|S_IXGRP) != 0) {
+         // Don't bother with file already exists error which is not an error
+         // and can occur nproc-1 times.
+         if (errno != EEXIST) {
+            perror("mkdir() error");
+         }
       }
       else {
          puts("Created new restart directory!");
@@ -119,17 +100,15 @@ RestartManager::write(real a_time)
    }
 
    // Open the restart file.
-   HDF_DataBase db_restart;
-   db_restart.mount(restart_filename, "I"); // mount, I=Initialize
+   RestartWriter db_writer(restart_filename.str(), m_max_restart_files);
 
    // Loop over vector of Serializable items and have each save their state to
    // the restart file.
    for (SerializableList::iterator iter(m_items.begin()); 
         iter != m_items.end();
         ++iter) {
-     (*iter)->putToRestart(db_restart, a_time);
+     (*iter)->putToRestart(db_writer, a_time);
    }
-   db_restart.unmount();
 
    // Update next time to write a restart file if we're doing time based
    // checkpointing.
@@ -143,34 +122,36 @@ void
 RestartManager::print()
 {
    // Print info on restart frequency.
-   printF("\n********************************************************\n");
-   printF("[ Restart Manager status ]:\n");
+   Loki_Utilities::printF("\n********************************************************\n");
+   Loki_Utilities::printF("[ Restart Manager status ]:\n");
 
    if (m_is_from_restart) {
-      printF("\tRunning from restart\n");
-      printF("\tRestart read directory path: %s\n",
-             m_restart_read_path.c_str());
-      printF("\tRestart file index: %i\n", m_restart_index);
+      Loki_Utilities::printF("\tRunning from restart\n");
+      Loki_Utilities::printF("\tRestart read directory path: %s\n",
+         m_restart_read_path.c_str());
+      Loki_Utilities::printF("\tRestart file index: %i\n", m_restart_index);
    }
    else {
-      printF("\tRunning from initial conditions\n");
+      Loki_Utilities::printF("\tRunning from initial conditions\n");
    }
-   printF("\tRestart write directory path: %s\n",
+   Loki_Utilities::printF("\tRestart write directory path: %s\n",
           m_restart_write_path.c_str());
 
    if (m_write_on_time) {
-      printF("\t  Restart every %e time units\n", m_time_interval);
-      printF("\t  Next write time: %e\n", m_next_write_time);
+      Loki_Utilities::printF("\t  Restart every %e time units\n",
+         m_time_interval);
+      Loki_Utilities::printF("\t  Next write time: %e\n", m_next_write_time);
    }
    else {
-      printF("\t  Restart every %i time steps\n", m_step_interval);
+      Loki_Utilities::printF("\t  Restart every %i time steps\n",
+         m_step_interval);
    }
 }
 
 
 void
 RestartManager::parseParameters(
-   ParmParse& a_pp)
+   LokiInputParser& a_pp)
 {
    // Logic to take either time or step interval.  You can specify a restart
    // write frequency based on time steps or simulation time but not both.  One
@@ -178,10 +159,10 @@ RestartManager::parseParameters(
    bool has_step_interval = a_pp.contains("step_interval");
    bool has_time_interval = a_pp.contains("time_interval");
    if (has_step_interval && has_time_interval) {
-      OV_ABORT("Must set restart frequency for only one of steps or time, not both.");
+      LOKI_ABORT("Must set restart frequency for only one of steps or time, not both.");
    }
    else if (!has_step_interval && !has_time_interval) {
-      OV_ABORT("Must set restart frequency for one of steps or time.");
+      LOKI_ABORT("Must set restart frequency for one of steps or time.");
    }
    else {
       a_pp.query("step_interval", m_step_interval);
@@ -190,12 +171,12 @@ RestartManager::parseParameters(
       // additional flag to indicate which scheme is being used.
       if (has_step_interval) {
          if (m_step_interval <= 0) {
-            OV_ABORT("Input step_interval must be > 0");
+            LOKI_ABORT("Input step_interval must be > 0");
          }
       }
       else {
          if (m_time_interval <= 0.0) {
-            OV_ABORT("Input time_interval must be > 0.0");
+            LOKI_ABORT("Input time_interval must be > 0.0");
          }
          else {
             m_write_on_time = true;
@@ -203,8 +184,12 @@ RestartManager::parseParameters(
       }
    }
 
-   a_pp.query("write_directory", m_restart_write_path);
-   a_pp.query("read_directory", m_restart_read_path);
+   string tmp1;
+   a_pp.query("write_directory", tmp1);
+   m_restart_write_path = tmp1;
+   string tmp2;
+   a_pp.query("read_directory", tmp2);
+   m_restart_read_path = tmp2;
 }
 
 
@@ -212,29 +197,25 @@ void
 RestartManager::restore()
 {
    if (m_restart_index == 0) {
-      OV_ABORT("No distributions found from which to restart ... quitting");
+      LOKI_ABORT("No distributions found from which to restart ... quitting");
    }
 
    // Glue together the info we already have to form the name of the file we'll
    // read and open it.
-   char restart_filename[100];
-   createFileName(restart_filename,
-      m_restart_read_path.c_str(),
-      m_restart_index );
-   printF("Restarting from %s\n", restart_filename);
+   ostringstream restart_filename;
+   createFileName(restart_filename, m_restart_read_path, m_restart_index);
+   Loki_Utilities::printF("Restarting from %s\n",
+      restart_filename.str().c_str());
 
-   HDF_DataBase db_restart;
-   db_restart.mount(restart_filename, "R"); // mount, R=read-only
+   RestartReader db_reader(restart_filename.str(), m_max_restart_files);
 
    // Loop over vector of Serializable items and have each restore their state
    // from the restart file.
    for (SerializableList::iterator iter(m_items.begin());
         iter != m_items.end();
         ++iter) {
-      (*iter)->getFromRestart(db_restart);
+      (*iter)->getFromRestart(db_reader);
    }
-
-   db_restart.unmount();
 
    // The restart index does double duty.  When restoring from a restart it
    // is the index of the restart file to restore from.  After that it is the
@@ -250,14 +231,15 @@ RestartManager::findRestartIndex()
    // Given the restart directory read path supplied by the user, look for the
    // last restart file that has been written and set m_restart_index to that
    // file's index.
-   char restart_filename[100];
-   int i_max(500); // largest possible number of distribution functions
-   for (int i(1); i <= i_max; ++i) {
-      createFileName(restart_filename, m_restart_read_path.c_str(), i);
-      HDF_DataBase db_restart;
-      if (db_restart.mount(restart_filename, "R") == 0) { // mount, R=read-only
+   int i = 1;
+   while (true) {
+      ostringstream restart_filename;
+      createFileName(restart_filename, m_restart_read_path, i);
+      struct stat stat_buf;
+      if (stat(restart_filename.str().c_str(), &stat_buf) == 0) {
          m_restart_index = i;
-         db_restart.unmount();
+         ++i;
+         restart_filename.str("");
       }
       else {
          break;
